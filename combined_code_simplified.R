@@ -18,7 +18,7 @@ library(ess)
 library(ggh4x)
 library(tmvtnorm)
 library(TruncatedNormal)
-library(hipercow)
+#library(hipercow)
 library(accelerometry)
 
 source("key_functions_simplified.R")
@@ -323,32 +323,16 @@ task_log_show(M0)
 
 #####
 
-pars <- expand.grid(flat = c(0), corr = c(3, 4, 5), form = c("peak", "thresh", "thresh_peak", "thresh_tdist"), 
-                    strain=c("wt", "alpha", "delta", "omicron")) %>% mutate(cov_start = c(50000), form=as.character(form), strain=as.character(strain)) 
-
-
 burnin_calculator <- function(output){
   posteriors <- output$MCMC_posterior
   n_it <- which(is.na(posteriors))[1]-1
   window <- 10000
-  rolling_posteriors <- c(rep(NA,window),accelerometry::movingaves(posteriors[1:n_it], window))
+  rolling_posteriors <- c(rep(NA, window), rollmean(posteriors[1:n_it], k = window, align = "right", fill = NA))
   
   burnin <- which(rolling_posteriors>rolling_posteriors[n_it])[1]
   
   return(burnin)
 }
-
-pars$chain_length <- 0
-pars$chain_length[c(10,15)] <- c(50000,10000)
-pars$cores <- 7
-pars$cores[c(8:10,13:15)] <- 15
-
-pars_filtered <- pars %>% filter(cores==15)
-
-pars6$chain_length <- 100000
-pars6$chain_length[8] <- 75000
-pars6$ncores <- 8
-pars6$ncores[c(8, 10, 11, 12)] <- 32
 
 output_continuing_function <- function(pars, i, chain=2, ncores=8){
   form=pars$form[i]
@@ -394,143 +378,8 @@ for(i in 1:nrow(pars6)){
   #if(x$ncores==32) M2 <- task_create_expr(MCMC_function(x), resources=resources)
 }
 
-#x1 <- output_continuing_function(pars_filtered, 1)
-#x2 <- output_continuing_function(pars_filtered, 2)
-#x3 <- output_continuing_function(pars_filtered, 3)
-
-#M1 <- task_create_expr(MCMC_function(x1), resources=resources)
-#M2 <- task_create_expr(MCMC_function(x2), resources=resources)
-#M3 <- task_create_expr(MCMC_function(x3), resources=resources)
-
-task_log_show(M1)
-task_log_show(M2)
-task_log_show(M3)
-
 pars6 <- expand.grid(flat = c(0), corr = c(6), form = c("peak", "thresh", "thresh_peak", "thresh_tdist"), 
                     strain=c("wt", "alpha", "delta", "omicron")) %>% mutate(cov_start = c(50000), form=as.character(form), strain=as.character(strain)) 
-
-
-pars_vg_6_starter <- function(pars6, i){
-  most_similar_output <- output_finder(pars6$strain[i], pars6$form[i], corr=4, pars6$flat[i], 1)
-  n_it <- which(is.na(most_similar_output$MCMC_posteriors))[1]-2
-  
-  input <- input_generator(strain=pars6$strain[i], form=pars6$form[i], corr=6, flat=0, proposal_type="Cov")
-  input$cov_matrix <- most_similar_output$cov_matrix
-  input$proposal_type <- "Cov"
-  input$parameters[-c(1:11)] <- most_similar_output$MCMC_output[n_it, -c(1:11)]
-  input$ncores <- 8
-  input$tag <- "bounded_a_b_"
-  
-  x <- input
-  return(x)
-  
-}
-
-######
-
-resources4 <- hipercow_resources(cores = 8)
-x1 <- pars_vg_6_starter(pars6, 1)
-M1 <- task_create_expr(MCMC_function(x1), resources=resources4)
-task_log_show(M1)
-
-x2 <- pars_vg_6_starter(pars=pars6, i=2)
-M2 <- task_create_expr(MCMC_function(x2), resources=resources4)
-
-x3 <- pars_vg_6_starter(pars6, 3)
-M3 <- task_create_expr(MCMC_function(x3), resources=resources4)
-
-x4 <- pars_vg_6_starter(pars6, 4)
-M4 <- task_create_expr(MCMC_function(x4), resources=resources4)
-
-x5 <- pars_vg_6_starter(pars6, 5)
-M5 <- task_create_expr(MCMC_function(x5), resources=resources4)
-
-x6 <- pars_vg_6_starter(pars6, 6)
-M6 <- task_create_expr(MCMC_function(x6), resources=resources4)
-
-x7 <- pars_vg_6_starter(pars6, 7)
-M7 <- task_create_expr(MCMC_function(x7), resources=resources4)
-
-x8 <- pars_vg_6_starter(pars6, 8)
-M8 <- task_create_expr(MCMC_function(x8), resources=resources4)
-
-x9 <- pars_vg_6_starter(pars6, 9)
-M9 <- task_create_expr(MCMC_function(x9), resources=resources4)
-
-x10 <- pars_vg_6_starter(pars6, 10)
-M10 <- task_create_expr(MCMC_function(x10), resources=resources4)
-
-x11 <- pars_vg_6_starter(pars6, 11)
-M11 <- task_create_expr(MCMC_function(x11), resources=resources4)
-
-x12 <- pars_vg_6_starter(pars6, 12)
-M12 <- task_create_expr(MCMC_function(x12), resources=resources4)
-
-x13 <- pars_vg_6_starter(pars6, 13)
-M13 <- task_create_expr(MCMC_function(x13), resources=resources4)
-
-x14 <- pars_vg_6_starter(pars6, 14)
-M14 <- task_create_expr(MCMC_function(x14), resources=resources4)
-
-x15 <- pars_vg_6_starter(pars6, 15)
-M15 <- task_create_expr(MCMC_function(x15), resources=resources4)
-
-x16 <- pars_vg_6_starter(pars6, 16)
-M16 <- task_create_expr(MCMC_function(x16), resources=resources4)
-
-#####
-
-
-chain_conv_check <- function(pars, i, ncores){
-  input <- output_continuing_function(pars, i, ncores) 
-  
-  input$parameters[1:18] <- input_generator(strain=pars$strain[i],
-                                      corr=pars$corr[i], 
-                                      flat=pars$flat[i], 
-                                      form=pars$form[i])$parameters[1:18]
-  
-  input$parameters[19:length(input$parameters)] <- 
-    input$parameters[19:length(input$parameters)]*
-    rnorm(n=length(input$parameters[19:length(input$parameters)]), mean=1, sd=0.04)
-  
-  input$tag <- "checking"
-  
-  return(input)
-}
-
-for(i in 1:nrow(pars_select)){
-  x <- chain_conv_check(pars_select, i, ncores)
-  M1 <- task_create_expr(MCMC_function(x), resources=resources)
-}
-
-task_log_show(M1)
-
-pars_strain <- expand.grid(flat = c(0),
-                    corr = c(3, 4, 5),
-                    form = c("thresh_tdist"), strain=c("wt", "alpha", "delta", "omicron")) %>%
-  mutate(cov_start = c(0), form=as.character(form), strain=as.character(strain)) 
-
-thresh_tdist_start <- function(pars_strain, i){
-  input <- input_generator(strain=pars_strain$strain[i], proposal_type="Cov", form=pars_strain$form[i], corr=pars_strain$corr[i], flat=pars_strain$flat[i])
-  
-  similar_output <- output_finder(strain=pars_strain$strain[i], form="thresh", corr=pars_strain$corr[i], flat=pars_strain$flat[i])
-  n_it <- which(is.na(similar_output$MCMC_posteriors))[1]-2
-  
-  input$parameters <- similar_output$MCMC_output[n_it,]
-  input$cov_matrix <- similar_output$cov_matrix
-  input$ncores <- 16
-  
-  return(input)
-}
-
-resources16 <- hipercow_resources(cores = 16)
-
-for(i in 1:nrow(pars_strain)){
-  x5 <- thresh_tdist_start(pars_strain, i)
-  M5 <- task_create_expr(MCMC_function(x5), resources=resources16)
-}
-
-task_log_show(M5)
 
 
 strain_starting_function <- function(pars_strain, i){
@@ -568,137 +417,6 @@ for(i in 1:nrow(pars)){
   M1 <- task_create_expr(MCMC_function(x), resources=resources)
 }
 task_log_show(M5)
-
-
-#####
-resources <- hipercow_resources(cores = 16)
-pars <- pars %>% filter(form %in% c("thresh", "thresh_peak"), strain != "all")
-
-x1 <- output_continuing_function(pars, i=1)
-M1 <- task_create_expr(MCMC_function(x1), resources=resources)
-task_log_show(M1)
-
-x2 <- output_continuing_function(pars, i=2)
-M2 <- task_create_expr(MCMC_function(x2), resources=resources)
-task_log_show(M2)
-
-x3 <- output_continuing_function(pars, i=3)
-M3 <- task_create_expr(MCMC_function(x3), resources=resources)
-task_log_show(M3)
-
-x4 <- output_continuing_function(pars, i=4)
-M4 <- task_create_expr(MCMC_function(x4), resources=resources)
-task_log_show(M4)
-
-x5 <- output_continuing_function(pars, i=5)
-M5 <- task_create_expr(MCMC_function(x5), resources=resources)
-task_log_show(M5)
-
-x6 <- output_continuing_function(pars, i=6)
-M6 <- task_create_expr(MCMC_function(x6), resources=resources)
-task_log_show(M6)
-
-x7 <- output_continuing_function(pars, i=7)
-M7 <- task_create_expr(MCMC_function(x7), resources=resources)
-task_log_show(M7)
-
-x8 <- output_continuing_function(pars, i=8)
-M8 <- task_create_expr(MCMC_function(x8), resources=resources)
-task_log_show(M8)
-
-x9 <- output_continuing_function(pars, i=9)
-M9 <- task_create_expr(MCMC_function(x9), resources=resources)
-task_log_show(M9)
-
-x10 <- output_continuing_function(pars, i=10)
-M10 <- task_create_expr(MCMC_function(x10), resources=resources)
-task_log_show(M10)
-
-x11 <- output_continuing_function(pars, i=11)
-M11 <- task_create_expr(MCMC_function(x11), resources=resources)
-task_log_show(M11)
-
-x12 <- output_continuing_function(pars, i=12)
-M12 <- task_create_expr(MCMC_function(x12), resources=resources)
-task_log_show(M12)
-
-x13 <- output_continuing_function(pars, i=13)
-M13 <- task_create_expr(MCMC_function(x13), resources=resources)
-task_log_show(M13)
-
-x14 <- output_continuing_function(pars, i=14)
-M14 <- task_create_expr(MCMC_function(x14), resources=resources)
-task_log_show(M14)
-
-x15 <- output_continuing_function(pars, i=15)
-M15 <- task_create_expr(MCMC_function(x15), resources=resources)
-task_log_show(M15)
-
-x16 <- output_continuing_function(pars, i=16)
-M16 <- task_create_expr(MCMC_function(x16), resources=resources)
-task_log_show(M16)
-
-x17 <- output_continuing_function(pars, i=17)
-M17 <- task_create_expr(MCMC_function(x17), resources=resources)
-task_log_show(M17)
-
-x18 <- output_continuing_function(pars, i=18)
-M18 <- task_create_expr(MCMC_function(x18), resources=resources)
-task_log_show(M18)
-
-x19 <- output_continuing_function(pars, i=19)
-M19 <- task_create_expr(MCMC_function(x19), resources=resources)
-task_log_show(M19)
-
-x20 <- output_continuing_function(pars, i=20)
-M20 <- task_create_expr(MCMC_function(x20), resources=resources)
-task_log_show(M20)
-
-x21 <- output_continuing_function(pars, i=21)
-M21 <- task_create_expr(MCMC_function(x21), resources=resources)
-task_log_show(M21)
-
-x22 <- output_continuing_function(pars, i=22)
-M22 <- task_create_expr(MCMC_function(x22), resources=resources)
-task_log_show(M22)
-
-x23 <- output_continuing_function(pars, i=23)
-M23 <- task_create_expr(MCMC_function(x23), resources=resources)
-task_log_show(M23)
-
-x24 <- output_continuing_function(pars, i=24)
-M24 <- task_create_expr(MCMC_function(x24), resources=resources)
-task_log_show(M24)
-
-x2 <- output_continuing_function(pars, 14)
-x2$parameters[c(2,4)] <- 0.5
-x2$vg <- 0
-x2$corr <- 0
-M2 <- task_create_expr(MCMC_function(x2), resources=resources)
-task_log_show(M2)
-
-x26 <- output_continuing_function(pars, 38)
-x26$parameters[c(2,4)] <- 0.5
-x26$vg <- 0
-x26$corr <- 0
-M26 <- task_create_expr(MCMC_function(x26), resources=resources)
-task_log_show(M26)
-
-x30 <- output_continuing_function(pars, 6)
-x30$ignored_pars <- x30$ignored_spline_par
-x30$parameters[c("l_bar", "l_sigma")] = c(-5,1)
-x30$cov_matrix[c(7,8),c(7,8)] <- output_finder("all", "incidence", corr=1, flat=1)$x$cov_matrix[c(7,8),c(7,8)]
-M30 <- task_create_expr(MCMC_function(x30), resources=resources)
-task_log_show(M30)
-
-x42 <- output_continuing_function(pars, 18)
-x42$ignored_pars <- x42$ignored_spline_par
-x42$parameters[c("l_bar", "l_sigma")] = c(-5,1)
-x42$cov_matrix[c(7,8),c(7,8)] <- output_finder("all", "incidence", corr=4, flat=1)$x$cov_matrix[c(7,8),c(7,8)]
-M42 <- task_create_expr(MCMC_function(x42), resources=resources)
-task_log_show(M42)
-#####
-
 
 output_combining_function <- function(strain, form, corr, flat){
   outputs <- file.info(paste0(strain,"/",output_list(strain, form, corr, flat, recentness))) %>% arrange(ctime)
@@ -739,17 +457,14 @@ output_combining_function <- function(strain, form, corr, flat){
   cat("\n")
 }
 
-pars_new <- pars6[10:12,]# %>% filter(strain=="omicron")
+pars_new <- pars6
 for(i in 1:nrow(pars_new)) output_combining_function(strain=pars_new$strain[i], form=pars_new$form[i], corr=pars_new$corr[i], flat=pars_new$flat[i])
 
-out <- output_finder(strain="all", form="thresh_peak", corr=2, flat=1)
+out <- output_finder(strain="alpha", form="thresh_peak", corr=6, flat=0)
 
-comparison_loop_1D <- function(output, n_samples, chain_length=NA){
+comparison_loop_1D <- function(output, n_samples, start){
   
   n_it <- which(is.na(output$MCMC_output[,1])==TRUE)[1]-2
-  
-  if(is.na(chain_length)) start = 1
-  else start <- n_it - chain_length
   
   d_sums <- list()
   storage <- list()
@@ -766,6 +481,7 @@ comparison_loop_1D <- function(output, n_samples, chain_length=NA){
   print(iterations)
   
   for(i in 1:length(iterations)){
+    print(i)
     parameters <- output$MCMC_output[iterations[i],]
     #parameters[c("test2", "test3", "test4")] = parameters[c("test2", "test3", "test4")]*0.8 
     p_array_raw <- p_array_func(parameters, knots=output$x$knots, vk=1, vg=output$x$vg, max_day=output$x$max_day, population=output$x$population, 
@@ -781,10 +497,10 @@ comparison_loop_1D <- function(output, n_samples, chain_length=NA){
   
   for(d in 1:3){
     plot_dfs[[d]] <- data.frame(x=as.numeric(dimnames(p_array)[[d]]), 
-                                p=colQuantiles(storage[[d]], probs=c(0.025, 0.5, 0.975)), 
+                                p=matrixStats::colQuantiles(storage[[d]], probs=c(0.025, 0.5, 0.975)), 
                                 d=d_sums[[d]]) %>% magrittr::set_colnames(c(variables[d], "lower", "median", "upper", "count")) 
     
-    if(d==2) plot_dfs[[d]] <- plot_dfs[[2]] %>% filter(count>100)
+    if(d==2) plot_dfs[[d]] <- plot_dfs[[2]] %>% dplyr::filter(count>100)
     
     plot_list[[d]] <- ggplot(plot_dfs[[d]], aes(x=.data[[variables[d]]])) +
       geom_point(aes(y=count)) +
@@ -800,14 +516,15 @@ comparison_loop_1D <- function(output, n_samples, chain_length=NA){
   return(plot_list)
 }
 
-comparison_loop_2D <- function(output, n_samples, chain_length=NA){
+comparison_loop_2D <- function(output, n_samples, start){
   n_it <- which(is.na(output$MCMC_output[,1])==TRUE)[1]-2
-  start <- n_it - chain_length
+  
   iterations <- round(seq(start, n_it, length.out=n_samples))
   
   storage <- array(dim=c(dim(output$x$data_array[-1,,])[1], dim(output$x$data_array[-1,,])[3], n_samples))
   
   for(i in 1:length(iterations)){
+    print(i)
     parameters <- output$MCMC_output[iterations[i],]
     #parameters[c("test2", "test3", "test4")] = parameters[c("test2", "test3", "test4")]*0.8 
     
@@ -847,9 +564,11 @@ comparison_loop_2D <- function(output, n_samples, chain_length=NA){
   
 }
 
-output_plotter <- function(output, chain_length, n_samples=10){
+output_plotter <- function(output, chain_length, n_samples=100){
   #output <- output_finder(strain, form, corr, flat)
   n_it <- which(is.na(output$MCMC_output[,1])==TRUE)[1]-2
+  if(chain_length<1) start = (1-chain_length)*n_it
+  else start = n_it - chain_length
   
   MCMC_output <- output$MCMC_output[1:n_it,]
   MCMC_posteriors <- output$MCMC_posteriors[1:n_it]
@@ -866,21 +585,21 @@ output_plotter <- function(output, chain_length, n_samples=10){
   infecteds <- infecteds_generator(thetas, knots, population, max_day, form)
   #plot(infecteds, type="l")
   
-  comp1 <- comparison_loop_1D(output, n_samples, chain_length=chain_length)
-  comp2 <- comparison_loop_2D(output, n_samples, chain_length=chain_length)
+  comp1 <- comparison_loop_1D(output, n_samples, start=start)
+  comp2 <- comparison_loop_2D(output, n_samples, start=start)
   
   plot <- ggpubr::ggarrange(comp1[[1]], comp1[[2]], comp1[[3]], comp2, nrow=2, ncol=2)
   print(plot)
-  ggsave(paste0(output$x$strain,"/images/fitting/",output$x$form,"_corr=", output$x$corr,"_flat=", output$x$flat,"_",output$x$tag,
+  ggsave(paste0(output$x$strain,"/images/fitting/",output$x$strain,"_",output$x$form,"_corr=", output$x$corr,"_flat=", output$x$flat,"_",output$x$tag,
                       "_vg=", output$x$vg,"_mult3.png"), plot, width=7, height=7)
 }
 
-pars_omicron <- pars6
+pars_omicron <- pars6 %>% dplyr::filter(form=="thresh_peak")
 
 for(i in 1:nrow(pars_omicron)){
   output <- output_finder(strain=pars_omicron$strain[i], pars_omicron$form[i], pars_omicron$corr[i], pars_omicron$flat[i])
   if(length(output)==1) next
-  output_plotter(output=output, chain_length=20000, n_samples=10)
+  output_plotter(output=output, chain_length=pars_omicron$chain_length[i], n_samples=100)
 } 
 
 param_output_post_func <- function(output){
@@ -946,7 +665,7 @@ a[[1]]
 a[[2]]
 a[[3]]
 
-MCMC_comparator <- function(pars, strain_interest=NA, chain_length, thinning){
+MCMC_comparator <- function(pars, strain_interest=NA, chain_length=NA, thinning){
   out <- data.frame(number=numeric(), row=numeric(), burnin=numeric(), strain=character(), form=character(), corr=numeric(), flat=numeric(), posterior=numeric(), chain=numeric())
   next_row <- 1
   if(is.na(strain_interest)==F) pars <- pars %>% filter(strain==strain_interest)
@@ -959,7 +678,7 @@ MCMC_comparator <- function(pars, strain_interest=NA, chain_length, thinning){
     if(length(output)==1) next
     n_it <- which(is.na(output$MCMC_posteriors))[1]-2
     if(is.null(output$chain)) output$chain=rep(1,n_it)
-    if(is.na(chain_length)) start <- 1
+    if(is.na(chain_length)) start=(1-pars$chain_length[i])*n_it
     else if(chain_length < 1) start <- (1-chain_length)*n_it
     else start <- n_it - chain_length
     out_length <- round((n_it-start)*thinning)
@@ -981,34 +700,36 @@ MCMC_comparator <- function(pars, strain_interest=NA, chain_length, thinning){
   out$flat = factor(out$flat, levels=c("tri", "trap"))
   out$chain <- factor(out$chain)
   
-  p <- ggplot(out, aes(x=row, y=posterior/10)) +
+  p <- ggplot(out %>% ungroup(), aes(x=row, y=posterior/10)) +
     geom_line(aes(color=chain)) +
-    facet_nested(strain ~ corr + form, scales="free_x", labeller = label_wrap_gen(multi_line=FALSE), independent="x") +
+    ggh4x::facet_nested(strain ~ form, scales="free_x", labeller = label_wrap_gen(multi_line=FALSE), independent="x") +
     theme_bw() +
     scale_x_continuous(labels = scales::unit_format(unit = "", scale = 1e-4)) +
     labs(x="Number of iterations (tens thousands)")
   
   p2 <- ggplot(out, aes(x=row, y=posterior/10)) +
     geom_line(aes(color=chain)) +
-    facet_nested(strain ~ corr + form, scales="free", labeller = label_wrap_gen(multi_line=FALSE), independent="all") +
+    ggh4x::facet_nested(strain ~ corr + form, scales="free", labeller = label_wrap_gen(multi_line=FALSE), independent="all") +
     theme_bw() +
     scale_x_continuous(labels = scales::unit_format(unit = "", scale = 1e-4)) +
     labs(x="Number of iterations (tens thousands)", y="posterior (tens)")
   
-  p3 <- ggplot(out %>% filter(row > burnin) %>% mutate(row_norm=row-burnin), aes(x=row_norm, y=posterior/10)) +
+  p3 <- ggplot(out %>% dplyr::filter(row > burnin) %>% mutate(row_norm=row-burnin), aes(x=row_norm, y=posterior/10)) +
     geom_line(aes(color=chain)) +
-    facet_nested(strain ~ form + corr, scales="free", labeller = label_wrap_gen(multi_line=FALSE), independent="all") +
+    ggh4x::facet_nested(strain ~ form, scales="free", labeller = label_wrap_gen(multi_line=FALSE), independent="all") +
     theme_bw() +
     scale_x_continuous(labels = scales::unit_format(unit = "", scale = 1e-3)) +
     labs(x="Number of iterations (thousands)", y="posterior (tens)")
   
-  ggsave("all/images/MCMC1.png", p, width=10, height=5)
-  ggsave("all/images/MCMC2.png", p2, width=10, height=5)
+  ggsave("images/MCMC1.png", p, width=10, height=5)
+  ggsave("images/MCMC2.png", p2, width=10, height=5)
   
   return(list(p, p2, p3))
 }
 
-MCMC_facet <- MCMC_comparator(pars=pars6, strain_interest=NA, chain_length=0.5, thinning=0.25)
+pars6$chain_length <- c(0.9,0.9,0.8,0.7,0.9,0.8,0.8,0.8,0.9,0.15,0.5,0.4,0.9,0.9,0.9,0.8)
+
+MCMC_facet <- MCMC_comparator(pars=pars6, strain_interest=NA, chain_length=NA, thinning=0.1)
 MCMC_facet[[1]]
 MCMC_facet[[2]]
 MCMC_facet[[3]]
@@ -1079,12 +800,22 @@ DIC_calculator <- function(output, start){
   likelihoods_vec <- output$MCMC_likelihoods[start:n_it]
   deviance_vec <- -2*likelihoods_vec
   
+  parameter_medians <- setNames(colMedians(output$MCMC_output[start:n_it,]), colnames(output$MCMC_output))
+  parameter_means <- colMeans(output$MCMC_output[start:n_it,])
+  
   expectation_of_deviance <- mean(deviance_vec)
   deviance_of_expectation <- mean(max(unique(deviance_vec)[100]))
+  deviance_of_param_medians <- -2*likelihood_function3(parameters=parameter_medians, knots=output$x$knots, vk=1, vg=output$x$vg, max_day=output$x$max_day, population=output$x$population, data_array=weekly_aggregator(output$x$data_array), test_pop=output$x$test_pop, ncores=output$x$ncores, form=output$x$form, symp_delay_lim=output$x$symp_delay_lim)
+  deviance_of_param_medians
+  deviance_of_param_means <- -2*likelihood_function3(parameters=parameter_means, knots=output$x$knots, vk=1, vg=output$x$vg, max_day=output$x$max_day, population=output$x$population, data_array=weekly_aggregator(output$x$data_array), test_pop=output$x$test_pop, ncores=output$x$ncores, form=output$x$form, symp_delay_lim=output$x$symp_delay_lim)
+  deviance_of_param_means
   
-  DIC = 2*expectation_of_deviance-deviance_of_expectation
+  DIC1 = 2*expectation_of_deviance-deviance_of_expectation
+  DIC2 = 2*expectation_of_deviance-deviance_of_param_medians
+  DIC3 = 2*expectation_of_deviance-deviance_of_param_means
+  DIC4 = 0.5*var(likelihoods_vec)+mean(deviance_vec)
   
-  return(DIC)
+  return(list(DIC1=DIC1, DIC2=DIC2, DIC3=DIC3, DIC4=DIC4))
 }
 
 DIC_comparator <- function(pars, start){
@@ -1128,70 +859,71 @@ metrics_comparator <- function(pars){
     output <- output_finder(strain=pars$strain[i], form=pars$form[i], corr=pars$corr[i], flat=pars$flat[i])
     metrics <- metrics_calculator(output)
     
-    start <- burnin_calculator(output)
-    if((metrics[[1]] - start) < 10000) start <- metrics[[1]] - 10000
+    n_it <- which(is.na(output$MCMC_posteriors))[1]-2
+    start <- (1-pars$chain_length[i])*n_it #burnin_calculator(output)
+    #if((metrics[[1]] - start) < 10000) start <- metrics[[1]] - 10000
     if(length(output)==1){
       pars[i,c("cov_start", "n_it", "Acceptances", "time_it", "min_ess", "min_ess_par", "DIC")] <- NA
       next
     } 
     ess <- ess_calculator(strain=pars$strain[i], form=pars$form[i], corr=pars$corr[i], flat=pars$flat[i], start=start)
     
-    pars$n_it[i] <- metrics[1]
+    pars$n_it[i] <- n_it
     pars$warm_up[i] <- start
-    pars$chain_length[i] <- metrics[[1]] - start
+    pars$chain_length_abs[i] <- metrics[[1]] - start
     pars$Acceptances[i] <- round(metrics[2],2)
     pars$time_it[i] <- round(metrics[3],2)
     pars$min_ess[i] <- round(min(ess[ess!=0]),1) 
     pars$min_ess_par[i] <- ifelse(is.na(ess[1]), NA, names(which(ess==min(ess[ess!=0]))))
-    pars$DIC[i] <- DIC_calculator(output, start)
+    
+    DICs <- DIC_calculator(output, start)
+    pars$DIC1[i] <- DICs[[1]]
+    pars$DIC2[i] <- DICs[[2]]
+    pars$DIC3[i] <- DICs[[3]]
+    pars$DIC4[i] <- DICs[[4]]
     pars$posterior[i] <- output$MCMC_posteriors[metrics[1]]
-    
-    #pars$a_lower[i] <- round(exp(median(output$MCMC_output[start:metrics[1],"a_bar"])-median(output$MCMC_output[start:metrics[1],"a_sigma"])),2)
-    #pars$a_median[i] <- round(exp(median(output$MCMC_output[start:metrics[1],"a_bar"])),2)
-    #pars$a_upper[i] <- round(exp(median(output$MCMC_output[start:metrics[1],"a_bar"])+median(output$MCMC_output[start:metrics[1],"a_sigma"])),2)
-    
-    #pars$a[i] <- paste0(pars$a_median[i], " (", pars$a_lower[i], " - ", pars$a_upper[i], ")")
-    #
-    #pars$b_lower[i] <- round(exp(median(output$MCMC_output[start:metrics[1],"b_bar"])-median(output$MCMC_output[start:metrics[1],"b_sigma"])),2)
-    #pars$b_median[i] <- round(exp(median(output$MCMC_output[start:metrics[1],"b_bar"])),2)
-    #pars$b_upper[i] <- round(exp(median(output$MCMC_output[start:metrics[1],"b_bar"])+median(output$MCMC_output[start:metrics[1],"b_sigma"])),2)
-    #
-    #pars$b[i] <- paste0(pars$b_median[i], " (", pars$b_lower[i], " - ", pars$b_upper[i], ")")
-    
-    #pars$vlmax_lower[i] <- round(median(output$MCMC_output[start:metrics[1],"vl_max_bar"])-median(output$MCMC_output[start:metrics[1],"vl_max_sigma"]),2)
-    #pars$vlmax_median[i] <- round(median(output$MCMC_output[start:metrics[1],"vl_max_bar"]),2)
-    #pars$vlmax_upper[i] <- round(median(output$MCMC_output[start:metrics[1],"vl_max_bar"])+median(output$MCMC_output[start:metrics[1],"vl_max_sigma"]),2)
-    
-    #pars$inc1[i] <- round(median(output$MCMC_output[start:metrics[1],"inc1"]),2)
-    #pars$inc2[i] <- round(median(output$MCMC_output[start:metrics[1],"inc2"]),2)
-    #pars$inc3[i] <- round(median(output$MCMC_output[start:metrics[1],"inc3"]),2)
-    
-    #pars$vlmax[i] <- paste0(pars$vlmax_median[i], " (", pars$vlmax_lower[i], " - ", pars$vlmax_upper[i], ")")
     
   }
   
-  pars_new <- pars %>% group_by(strain, corr) %>% filter(form!="incidence") %>% mutate(DIC=round(DIC-min(DIC, na.rm=T))) %>% mutate(posterior_norm=round(posterior-max(posterior, na.rm=T),0))
-  
+  pars_new <- pars %>% group_by(strain, corr) %>% mutate(posterior_norm=round(posterior-max(posterior, na.rm=T),0),
+                                                         DIC1_norm = DIC1-min(DIC1),
+                                                         DIC2_norm = DIC2-min(DIC2),
+                                                         DIC3_norm = DIC3-min(DIC3),
+                                                         DIC4_norm = DIC4-min(DIC4)) %>% arrange(strain, posterior_norm)
+  pars_new %>% arrange(strain, DIC1)
   #pars_new %>% dplyr::select(strain, form, corr, min_ess, DIC, posterior_norm, a, b, vlmax, inc1, inc2, inc3) %>% arrange(strain, DIC) %>% print(n=50)
   
   cat("\n")
   
-  p1 <- ggplot(pars_new[,c("strain", "form", "corr", "DIC")] %>% mutate(corr=factor(corr)), aes(x=corr, fill=form, y=DIC)) +
+  p1 <- ggplot(pars_new[,c("strain", "form", "corr", "DIC1_norm")], aes(x=form, y=DIC1_norm)) +
     geom_bar(stat="identity", position="dodge") +
     facet_grid(~strain, scales="free_y") +
     theme_bw()
   
   p1
   
-  p2 <- ggplot(pars_new, aes(x=form, y=posterior_norm)) +
+  p1.1 <- ggplot(pars_new[,c("strain", "form", "corr", "DIC3_norm")], aes(x=form, y=DIC3_norm)) +
+    geom_bar(stat="identity", position="dodge") +
+    facet_grid(~strain, scales="free_y") +
+    theme_bw()
+  
+  p1.1
+  
+  p2 <- ggplot(pars_new, aes(x=form, y=DIC1)) +
     geom_point() +
     facet_grid(strain~corr, scales="free_y") +
     theme_bw()
   
   p2
   
-  ggsave("all/images/model_DIC.png", p1, width=10, height=5)
-  ggsave("all/images/model_posteriors.png", p2, width=10, height=5)
+  pars_model <- pars_new[,c("form", "strain", "DIC1_norm", "DIC2_norm", "DIC3_norm", "DIC4_norm")] %>% tidyr::gather(param, value,3:6)
+  
+  ggplot(pars_model, aes(x=form, y=value, fill=param, group=param)) +
+    geom_col(position="dodge") +
+    facet_wrap(~strain, scales="free") + theme_bw()
+  
+  ggsave("images/model_DIC.png", p1, width=10, height=5)
+  ggsave("images/model_posteriors.png", p2, width=10, height=5)
   
   
   return(list(DIC=p1, posteriors=p2, metrics=pars_new))
@@ -1201,6 +933,7 @@ metrics <- metrics_comparator(pars=pars6)
 metrics[[2]]
 metrics[[3]] %>% group_by(strain) %>% arrange(strain, posterior_norm, desc=T)
 metrics[[3]] %>% arrange(form, corr, flat)
+metrics[[4]]
 
 vl_func <- function(a1, b1, l1, t1, vlmax1, vi, corr, flat){
   a_par <- exp(a1)
@@ -1225,27 +958,44 @@ vl_func <- function(a1, b1, l1, t1, vlmax1, vi, corr, flat){
   return(pmax(vl,vi))
 }
 
-vls_calculator <- function(strain, form, corr, flat, chain_length, n_samples=33, n_indiv=33){
+vls_calculator <- function(pars, i, n_samples=50, n_indiv=50){
+  strain <- pars$strain[i]
+  form <- pars$form[i]
+  corr <- pars$corr[i]
+  flat <- pars$flat[i]
+  chain_length <- pars$chain_length[i]
+  
   times <- seq(-14,28,0.1)
   vl_storage <- array(dim=c(length(times), n_indiv, n_samples))
   t_peak <- array(dim=c(n_indiv, n_samples))
+  t_peak_end <- array(dim=c(n_indiv, n_samples))
   symp_rel_peak <- array(dim=c(n_indiv, n_samples))
   symp_rel_det <- array(dim=c(n_indiv, n_samples))
+  symp_to_end <- array(dim=c(n_indiv, n_samples))
+  
   tot_infection_time <- array(dim=c(n_indiv, n_samples))
+  
+  growth_matrix <- array(dim=c(n_indiv, n_samples))
+  decay_matrix <- array(dim=c(n_indiv, n_samples))
+  vl_matrix <- array(dim=c(n_indiv, n_samples))
   
   output_raw <- output_finder(strain=strain, form=form, corr=corr, flat=flat)
   if(length(output_raw) == 1) return("skip")
   output <- output_raw$MCMC_output
   
   n_it <- which(is.na(output))[1]-2
-  start <- n_it - chain_length
+  if(chain_length < 1) start <- (1-pars$chain_length[i])*n_it
+  else start <- n_it - chain_length
   iterations <- seq(start,n_it,length.out=n_samples)
   
   for(i in 1:n_samples){
-    vl_max_samples <- rnorm(n=n_indiv, output[iterations[i],"vl_max_bar"], output[iterations[i],"vl_max_sigma"])
+    if(n_samples==1) pars_run <- setNames(colMedians(output[start:n_it,]), colnames(output))
+    else pars_run <- output[iterations[i],]
     
-    a_samples_vl <- rnorm(n=n_indiv, mean=output[iterations[i],"a_bar"], sd=output[iterations[i],"a_sigma"])
-    b_samples_vl <- rnorm(n=n_indiv, mean=output[iterations[i],"b_bar"], sd=output[iterations[i],"b_sigma"])
+    vl_max_samples <- rnorm(n=n_indiv, pars_run["vl_max_bar"], pars_run["vl_max_sigma"])
+    
+    a_samples_vl <- rnorm(n=n_indiv, mean=pars_run["a_bar"], sd=pars_run["a_sigma"])
+    b_samples_vl <- rnorm(n=n_indiv, mean=pars_run["b_bar"], sd=pars_run["b_sigma"])
     
     a_samples <- 0.5+exp(a_samples_vl)
     b_samples <- 0.25+exp(b_samples_vl)
@@ -1257,36 +1007,36 @@ vls_calculator <- function(strain, form, corr, flat, chain_length, n_samples=33,
     if(output_raw$x$form=="peak" & output_raw$x$vg==6){
       days = -output_raw$x$symp_delay_lim:output_raw$x$symp_delay_lim
       
-      inc_dist = setNames(fGarch::psnorm(days,   mean=output[iterations[i],"inc1"], sd=output[iterations[i],"inc2"], xi=exp(output[iterations[i],"inc3"]))-
-                          fGarch::psnorm(days-1, mean=output[iterations[i],"inc1"], sd=output[iterations[i],"inc2"], xi=exp(output[iterations[i],"inc3"])),days)
+      inc_dist = setNames(fGarch::psnorm(days,   mean=pars_run["inc1"], sd=pars_run["inc2"], xi=exp(pars_run["inc3"]))-
+                          fGarch::psnorm(days-1, mean=pars_run["inc1"], sd=pars_run["inc2"], xi=exp(pars_run["inc3"])),days)
       
       time_of_peak = (vl_max_samples-vi)/a_samples
-      inc_samples = sample(days, size=n_samples, prob=inc_dist, replace=T)
+      inc_samples = sample(days, size=n_indiv, prob=inc_dist, replace=T)
       t_symptoms = time_of_peak+inc_samples
       accepted <- rep(T,length(inc_samples))
     } 
     if(output_raw$x$form=="thresh" & output_raw$x$vg==6){
-      inc_samples <- rnorm(n=n_indiv, mean=output[iterations[i],"inc1"], sd=output[iterations[i],"inc2"])
+      inc_samples <- rnorm(n=n_indiv, mean=pars_run["inc1"], sd=pars_run["inc2"])
       
       vl_thresh <- inc_samples
       accepted <- vl_thresh < vl_max_samples
       
       t_thresh <- (vl_thresh-vi)/a_samples
-      t_symptoms <- t_thresh+output[iterations[i],"inc3"]
+      t_symptoms <- t_thresh+pars_run["inc3"]
     } 
     if(output_raw$x$form=="thresh_peak" & output_raw$x$vg==6){
-      inc_samples <- rtruncnorm(n=n_indiv, a=0, mean=output[iterations[i],"inc1"], sd=output[iterations[i],"inc2"])
+      inc_samples <- rtruncnorm(n=n_indiv, a=0, mean=pars_run["inc1"], sd=pars_run["inc2"])
       
       vl_thresh <- vl_max_samples-inc_samples
       
       t_thresh <- (vl_thresh-vi)/a_samples
-      t_symptoms <- t_thresh+output[iterations[i],"inc3"]
+      t_symptoms <- t_thresh+pars_run["inc3"]
       accepted <- rep(T,length(inc_samples))
     } 
     if(output_raw$x$form=="thresh_tdist" & output_raw$x$vg==6){
-      inc_samples <- exp(rnorm(n=n_indiv, mean=output[iterations[i],"inc1"], sd=output[iterations[i],"inc2"]))
+      inc_samples <- exp(rnorm(n=n_indiv, mean=pars_run["inc1"], sd=pars_run["inc2"]))
       
-      vl_thresh <- output[iterations[i],"inc3"]
+      vl_thresh <- pars_run["inc3"]
       
       t_thresh <- (vl_thresh-vi)/a_samples
       t_symptoms <- t_thresh+inc_samples
@@ -1294,14 +1044,21 @@ vls_calculator <- function(strain, form, corr, flat, chain_length, n_samples=33,
     } 
     
     t_peak[,i] <- (vl_max_samples-vi)/a_samples
+    t_peak_end[,i] <- (vl_max_samples-vi)/b_samples
     
     symp_rel_det[,i] <- t_symptoms
     symp_rel_peak[,i] <- t_symptoms-t_peak[,i]
     tot_infection_time[,i] <- (vl_max_samples-vi)*(a_samples+b_samples)/(a_samples*b_samples)
+    symp_to_end[,i] <- tot_infection_time[,i]-t_symptoms
     
     symp_rel_det[!accepted,i] <- NA
     symp_rel_peak[!accepted,i] <- NA
     tot_infection_time[!accepted,i] <- NA
+    symp_to_end[!accepted,i] <- NA
+    
+    growth_matrix[,i] <- a_samples
+    decay_matrix[,i] <- b_samples
+    vl_matrix[,i] <- vl_max_samples
   }
   
   dimnames(vl_storage)[[1]] <- round(times,2)
@@ -1316,9 +1073,9 @@ vls_calculator <- function(strain, form, corr, flat, chain_length, n_samples=33,
                             corr=corr, 
                             flat=flat,
                             type=rep(c("median","lower","upper"), c(length(times),length(times), length(times))),
-                            vls=rbind(rowQuantiles(median_each_slice, probs=c(0.025, 0.5, 0.975)),
-                                      rowQuantiles(lower_each_slice, probs=c(0.025, 0.5, 0.975)),
-                                      rowQuantiles(upper_each_slice, probs=c(0.025, 0.5, 0.975)))) %>%
+                            vls=rbind(matrixStats::rowQuantiles(median_each_slice, probs=c(0.025, 0.5, 0.975)),
+                                      matrixStats::rowQuantiles(lower_each_slice, probs=c(0.025, 0.5, 0.975)),
+                                      matrixStats::rowQuantiles(upper_each_slice, probs=c(0.025, 0.5, 0.975)))) %>%
     magrittr::set_colnames(c("t", "form", "strain", "corr", "flat", "type", "lower", "median", "upper"))
   
   p <- ggplot(plotting_df, aes(x=t, color=type, fill=type)) +
@@ -1339,19 +1096,23 @@ vls_calculator <- function(strain, form, corr, flat, chain_length, n_samples=33,
     geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.2, color="white") +
     theme_bw()
   
-  #print(p2)
-  
-  plotting_df3 <- reshape2::melt(vl_storage, varnames=c("t", "person", "sample")) %>%
-    mutate(ID=paste0(person,sample)) %>%
-    filter(!lag(value,1) < 1.000001 |
-           !lead(value,1) < 1.00000001 |
-            t %in% c(0,-14,28)) %>%
-    group_by(ID) %>%
-    filter(value < 1.000001 | value==max(value) | t %in% c(-14,28)) %>%
+  plotting_df4 <- reshape2::melt(vl_storage, varnames=c("t", "person", "sample")) %>%
+    dplyr::filter(t%%1 == 0) %>%
     mutate(form=form, 
            strain=strain,
            corr=corr, 
-           flat=flat)
+           flat=flat) 
+  
+  plotting_df3 <- reshape2::melt(vl_storage, varnames=c("t", "person", "sample")) %>%
+    mutate(ID=paste0(person,sample)) %>% 
+    mutate(lead1 =lead(value), lag1 = dplyr::lag(value)) %>%
+    group_by(ID) %>%
+    dplyr::filter((lead1 != 1 & lag1 == 1) | (lead1 == 1 & lag1 != 1) | t %in% c(-14,28) | value==max(value)) %>%
+    mutate(form=form, 
+           strain=strain,
+           corr=corr, 
+           flat=flat) %>%
+    dplyr::select(-c(lead1, lag1))
     
   p3 <- ggplot(plotting_df3, aes(x=t, y=value, group=ID)) +
     geom_line(color="blue", alpha=0.2) +
@@ -1359,24 +1120,46 @@ vls_calculator <- function(strain, form, corr, flat, chain_length, n_samples=33,
     theme(legend.position="none") +
     geom_line(data=plotting_df2, aes(x=t, y=median, group=1), size=1)
     
-  key_times <- data.frame(form=form, 
-                             strain=strain, 
-                             corr=corr, 
-                             flat=flat,
-                             det_to_symp = c(symp_rel_det),
-                             peak_to_symp = c(symp_rel_peak), 
-                             det_to_peak = c(t_peak),
-                             total_infection_time = c(tot_infection_time)) %>% 
-    tidyr::gather(param, value, 5:8) 
+  key_vars <- data.frame(form=form, 
+                         strain=strain, 
+                         corr=corr, 
+                         flat=flat,
+                         det_to_symp = c(symp_rel_det),
+                         symp_to_end = c(symp_to_end),
+                         peak_to_symp = c(symp_rel_peak), 
+                         det_to_peak = c(t_peak),
+                         peak_to_end = c(t_peak_end),
+                         total_infection_time = c(tot_infection_time),
+                         growth=c(growth_matrix),
+                         decay=c(decay_matrix),
+                         peak=c(vl_matrix)
+                         ) %>% 
+    tidyr::gather(param, value, 5:13) 
   
-  p4 <- ggplot(key_times, aes(x=param, y=value)) +
+  key_vars_mult <- data.frame(matrixStats::colQuantiles(as.matrix(data.frame(det_to_symp = matrixStats::colQuantiles(symp_rel_det, probs=c(0.025, 0.5, 0.975)),
+                              symp_to_end = matrixStats::colQuantiles(symp_to_end, probs=c(0.025, 0.5, 0.975)),
+                              peak_to_symp = matrixStats::colQuantiles(symp_rel_peak, probs=c(0.025, 0.5, 0.975)), 
+                              det_to_peak = matrixStats::colQuantiles(t_peak, probs=c(0.025, 0.5, 0.975)),
+                              peak_to_end = matrixStats::colQuantiles(t_peak_end, probs=c(0.025, 0.5, 0.975)),
+                              total_infection_time = matrixStats::colQuantiles(tot_infection_time, probs=c(0.025, 0.5, 0.975)),
+                              growth=matrixStats::colQuantiles(growth_matrix, probs=c(0.025, 0.5, 0.975)),
+                              decay=matrixStats::colQuantiles(decay_matrix, probs=c(0.025, 0.5, 0.975)),
+                              peak=matrixStats::colQuantiles(vl_matrix, probs=c(0.025, 0.5, 0.975)))), probs=c(0.025, 0.5, 0.975))) %>%
+    magrittr::set_colnames(c("lower", "median", "upper")) %>%
+    tibble::rownames_to_column(var="row_name") %>%
+    mutate(param=stringr::str_extract(row_name, "^[^.]+")) %>%
+    mutate(type=ifelse(grepl("2.5", row_name), "lower", ifelse(grepl("50", row_name), "median", "upper"))) %>%
+    mutate(strain=strain, form=form, corr=corr, flat=flat) %>%
+    dplyr::select(strain, form, corr, flat, param, type, lower, median, upper)
+  
+  p4 <- ggplot(key_vars, aes(x=param, y=value)) +
     geom_boxplot() +
     #facet_wrap() +
     theme_bw()
   
   #ggsave(paste0(strain,"/vl_trajectories/",strain,"_",form,"_corr=",corr,"_flat=",flat), p)
   
-  return(list(plotting_df, plotting_df2, plotting_df3, key_times))
+  return(list(plotting_df, plotting_df2, plotting_df3, plotting_df4, key_vars, key_vars_mult))
 }
 
 hist_plotter <- function(strain, form, corr, flat, chain_length, n_samples){
@@ -1500,59 +1283,338 @@ hist_plotter <- function(strain, form, corr, flat, chain_length, n_samples){
   return(p)
 }
 
+mapping_func <- function(out){
+  mapped_data <- out %>%
+    mutate(param_plotting = case_when(
+      param == "det_to_symp" ~ "Detection to symptom onset",
+      param == "symp_to_end" ~ "Symptom onset to end of infection",
+      param == "peak_to_symp" ~ "Time of peak to symptom onset",
+      param == "det_to_peak" ~ "Detection to peak viral load",
+      param == "peak_to_end" ~ "Peak viral load to end of infection",
+      param == "total_infection_time" ~ "Total infection time",
+      TRUE ~ as.character(param)  # If none of the above conditions match, keep original value
+    ))  %>%
+    mutate(strain_plotting = case_when(
+      strain == "omicron" ~ "Omicron",
+      strain == "alpha" ~ "Alpha",
+      strain == "delta" ~ "Delta",
+      strain == "wt" ~ "Wild type",
+      TRUE ~ as.character(param)  # If none of the above conditions match, keep original value
+    ))
+  return(mapped_data)
+}
+
+symp_plotter <- function(out6, params_interest, legend="none", y_label=NULL){
+  
+  out6_adj <- mapping_func(out6) %>% mutate(strain_plotting=factor(strain_plotting, levels=c("Wild type", "Alpha", "Delta", "Omicron")))
+  
+  p6 <- ggplot(out6_adj %>% dplyr::filter(param %in% params_interest) %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))), aes(x=strain_plotting, color=type)) +
+    geom_point(aes(y=median)) +
+    geom_errorbar(aes(ymin=lower, ymax=upper), width=0.1) +
+    theme_bw() +
+    facet_wrap(~param_plotting, scales="free_x") +
+    coord_flip() +
+    theme(legend.position = legend) +
+    labs(y=y_label, x=NULL) +
+    theme(panel.grid=element_blank())
+  
+  out7_raw <- out6_adj %>% group_by(strain, param, form, corr, flat) %>% tidyr::gather(CI, value, 7:9) %>% tidyr::spread(type, value)
+  out7_median <- out7_raw %>% dplyr::filter(CI=="median", param %in% params_interest)
+  out7_lower <- out7_raw %>% dplyr::filter(CI=="lower", param %in% params_interest)
+  out7_upper <- out7_raw %>% dplyr::filter(CI=="upper", param %in% params_interest)
+  
+  p7 <- ggplot(out7_median, aes(x=strain_plotting, color=strain_plotting, fill=strain_plotting)) +
+    geom_point(aes(y=median, size=0.4)) +
+    geom_errorbar(aes(ymin=lower, ymax=upper), width=0.5) +
+    geom_crossbar(data=mapping_func(out6_adj) %>% dplyr::filter(param %in% params_interest), aes(ymin=lower, y=median, ymax=upper, alpha=0.1), width=0.5, color="transparent") +
+    theme_bw() +
+    facet_wrap(~param_plotting, scales="free_x") +
+    coord_flip() +
+    theme(legend.position = legend) +
+    labs(y=y_label, x=NULL) +
+    theme(panel.grid = element_blank(),
+          axis.line = element_line(colour = "black"),
+          strip.background = element_rect(color="white", fill="white", size=0.5, linetype="solid"),
+          strip.text.x = element_text(size=12, hjust = 0.5, margin=margin(l=2, b=2), color="black"),
+          panel.border=element_rect(color="white"),
+          axis.title.x = element_text(size=12, color="black", margin=margin(t=10)),
+          axis.title.y = element_text(size=12, color="black"),
+          axis.text.x = element_text(size=12, color="black"),
+          axis.text.y = element_text(size=12, color="black")) + theme(plot.margin = margin(0.25,0,0.25,0, "cm"))
+  
+  p7
+  
+  return(list(p6,p7))
+}
+
 for(i in 1:nrow(pars)) hist_plotter(strain=pars$strain[i], form=pars$form[i], corr=pars$corr[i], flat=pars$flat[i], chain_length=3000, n_samples=1000)
 
-vls_comparator <- function(pars, chain_length){
-  out <- data.frame(t=numeric(), form=character(), strain=character(), corr=logical(), flat=character(), lower=numeric(), median=numeric(), upper=numeric())
+vls_comparator <- function(pars, tag="", n_samples=50, n_indiv=50){
+  out1 <- data.frame(t=numeric(), form=character(), strain=character(), corr=logical(), flat=character(), lower=numeric(), median=numeric(), upper=numeric())
   out2 <- data.frame(t=numeric(), person=numeric(), sample=numeric(), value=numeric(), ID=character(), form=character(), strain=character(), corr=numeric(), flat=numeric())
+  out3 <- data.frame(t=numeric(), person=numeric(), sample=numeric(), value=numeric(), form=character(), strain=character(), corr=numeric(), flat=numeric())
   out_symp <- data.frame(form=character(), strain=character(), corr=numeric(), flat=numeric(), param=character(), value=numeric())
+  out6 <- data.frame(strain=character(), form=character(), corr=numeric(), flat=numeric(), param=character(), type=character(), lower=numeric(), median=numeric(), upper=numeric())
   
-  next_line <- 1
+  out1_med <- data.frame(t=numeric(), form=character(), strain=character(), corr=logical(), flat=character(), lower=numeric(), median=numeric(), upper=numeric())
+  out2_med <- data.frame(t=numeric(), person=numeric(), sample=numeric(), value=numeric(), ID=character(), form=character(), strain=character(), corr=numeric(), flat=numeric())
+  out3_med <- data.frame(t=numeric(), person=numeric(), sample=numeric(), value=numeric(), form=character(), strain=character(), corr=numeric(), flat=numeric())
+  out_symp_med <- data.frame(form=character(), strain=character(), corr=numeric(), flat=numeric(), param=character(), value=numeric())
+  out6_med <- data.frame(strain=character(), form=character(), corr=numeric(), flat=numeric(), param=character(), type=character(), lower=numeric(), median=numeric(), upper=numeric())
+  
+  next_line1 <- 1
   next_line2 <- 1
+  next_line3 <- 1
+  next_line4 <- 1
+  next_line6 <- 1
+  
+  next_line1_med <- 1
+  next_line2_med <- 1
+  next_line3_med <- 1
+  next_line4_med <- 1
+  next_line6_med <- 1
   
   for(i in 1:nrow(pars)){
-    vls <- vls_calculator(strain=pars$strain[i], form=pars$form[i], corr=pars$corr[i], flat=pars$flat[i], chain_length=chain_length, n_samples=10)
+    vls <- vls_calculator(pars=pars, i=i, n_indiv=n_indiv, n_samples=n_samples)
+    vls_med <- vls_calculator(pars=pars, i=i, n_indiv=1000, n_samples=1)
     if(length(vls) != 1){
-      out[((i-1)*nrow(vls[[2]])+1):(i*nrow(vls[[2]])),] <- vls[[2]]
-      out2[next_line:(next_line+nrow(vls[[3]])-1),] <- vls[[3]]
-      out_symp[next_line2:(next_line2+nrow(vls[[4]])-1),] <- vls[[4]]
+      out1[next_line1:(next_line1+nrow(vls[[2]])-1),] <- vls[[2]]
+      out2[next_line2:(next_line2+nrow(vls[[3]])-1),] <- vls[[3]]
+      out3[next_line3:(next_line3+nrow(vls[[4]])-1),] <- vls[[4]]
+      out_symp[next_line4:(next_line4+nrow(vls[[5]])-1),] <- vls[[5]]
+      out6[next_line6:(next_line6+nrow(vls[[6]])-1),] <- vls[[6]]
       
-      next_line <- next_line+nrow(vls[[3]])-1
-      next_line2 <- next_line2+nrow(vls[[4]])-1
+      out1_med[next_line1_med:(next_line1_med+nrow(vls_med[[2]])-1),] <- vls_med[[2]]
+      out2_med[next_line2_med:(next_line2_med+nrow(vls_med[[3]])-1),] <- vls_med[[3]]
+      out3_med[next_line3_med:(next_line3_med+nrow(vls_med[[4]])-1),] <- vls_med[[4]]
+      out_symp_med[next_line4_med:(next_line4_med+nrow(vls_med[[5]])-1),] <- vls_med[[5]]
+      out6_med[next_line6_med:(next_line6_med+nrow(vls_med[[6]])-1),] <- vls_med[[6]]
+      
+      next_line1 <- next_line1+nrow(vls[[2]])
+      next_line2 <- next_line2+nrow(vls[[3]])
+      next_line3 <- next_line3+nrow(vls[[4]])
+      next_line4 <- next_line4+nrow(vls[[5]])
+      next_line6 <- next_line6+nrow(vls[[6]])
+      
+      next_line1_med <- next_line1_med+nrow(vls_med[[2]])
+      next_line2_med <- next_line2_med+nrow(vls_med[[3]])
+      next_line3_med <- next_line3_med+nrow(vls_med[[4]])
+      next_line4_med <- next_line4_med+nrow(vls_med[[5]])
+      next_line6_med <- next_line4_med+nrow(vls_med[[6]])
     } 
   }
   
-  p <- ggplot(out %>% filter(corr!=5), aes(x=t)) +
+  p <- ggplot(out1 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))), aes(x=t)) +
     geom_line(aes(y=median)) +
-    facet_nested(form ~ strain + corr, scales="free", labeller = label_wrap_gen(multi_line=FALSE), independent="all") +
+    facet_nested(form ~ strain, scales="fixed", labeller = label_wrap_gen(multi_line=FALSE)) +
     geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.2, color="white") +
-    theme_bw()
+    theme_bw() +
+    scale_x_continuous(breaks=seq(-14,28,7)) +
+    scale_y_continuous(breaks=seq(2,10,2)) +
+    theme(panel.grid = element_blank())
   
-  p2 <- ggplot(out2 %>% filter(is.na(strain)==FALSE), aes(x=t, y=value, group=ID)) +
-        geom_line(color="blue", alpha=0.1) +
-        theme_bw() +
-        theme(legend.position="none") +
-        facet_nested(form ~ strain + corr, scales="free", labeller = label_wrap_gen(multi_line=FALSE), independent="all") +
-        geom_line(data=out, aes(x=t, y=median, group=1), size=1)
+  p
   
-  p3 <- ggplot(out_symp, aes(x=form, y=value)) +
+  p1 <- ggplot(out1_med %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))), aes(x=t)) +
+    geom_ribbon(data=out1 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))), aes(ymin=lower, ymax=upper), alpha=0.1, fill="blue") +
+    geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.1, fill="red") +
+    geom_line(aes(y=median)) +
+    facet_nested(form ~ strain, scales="fixed", labeller = label_wrap_gen(multi_line=FALSE)) +
+    theme_bw() +
+    scale_x_continuous(breaks=seq(-14,28,7)) +
+    scale_y_continuous(breaks=seq(2,10,2)) +
+    theme(panel.grid = element_blank())
+  
+  p1
+  
+  p2 <- ggplot(out2 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))) %>%
+                 mutate(strain=recode(strain, "wt"="Wild type",
+                                      "alpha"="Alpha", "delta"="Delta", "omicron"="Omicron")), aes(x=t, y=value, group=ID)) +
+    geom_line(aes(color=strain), alpha=0.03) +
+    theme_bw() +
+    theme(legend.position="none") +
+    facet_grid(~strain, scales="fixed", labeller = label_wrap_gen(multi_line=FALSE)) +
+    geom_line(data=out1 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))) %>%
+                mutate(strain=recode(strain, "wt"="Wild type",
+                                     "alpha"="Alpha", "delta"="Delta", "omicron"="Omicron")), aes(x=t, y=median, group=1), size=1) +
+    scale_x_continuous(breaks=seq(-14,28,7)) + 
+    scale_y_continuous(breaks=seq(2,10,2), name = expression(paste("Viral Load (", log[10]," RNA copies mL"^{-1},")", sep = ""))) +
+    theme(panel.grid = element_blank(),
+          axis.line = element_line(colour = "black"),
+          strip.background = element_rect(color="white", fill="white", size=0.5, linetype="solid"),
+          strip.text.x = element_text(size=12, hjust = 0, margin=margin(l=2, b=2), color="black"),
+          panel.border=element_blank(),
+          axis.title.x = element_text(size=12, color="black", margin=margin(t=10)),
+          axis.title.y = element_text(size=12, color="black"),
+          axis.text.x = element_text(size=12, color="black"),
+          axis.text.y = element_text(size=12, color="black")) +
+    labs(x="Time from peak (days)") 
+  
+  p2
+  
+  p2.2 <- ggplot(out3 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron")), t=factor(t, levels=c(-14:28))), aes(x=t, y=value)) +
     geom_boxplot(outlier.shape=NA) +
-    facet_nested(param ~ strain + corr, scales="free", labeller = label_wrap_gen(multi_line=FALSE), independent="all") +
-    theme_bw()
+    theme_bw() +
+    facet_nested(form ~ strain, scales="fixed", labeller = label_wrap_gen(multi_line=FALSE)) +
+    scale_x_discrete(breaks=seq(-14,28,7)) + 
+    scale_y_continuous(breaks=seq(2,10,2)) +
+    theme(panel.grid = element_blank()) 
   
+  p2.2
   
-  ggsave("images/viral_load_comparison_aggregage.png", p)
-  ggsave("images/viral_load_comparison_samples.png", p2)
-  ggsave("images/symptom_comparisons.png", p3)
+  out4 <- out3 %>% mutate(t=factor(t, levels=c(-14:28))) %>% group_by(strain, form, t) %>% summarise(lower=quantile(value, probs=c(0.025)),
+                                                                                             median=quantile(value, probs=c(0.5)), 
+                                                                                             upper=quantile(value, probs=0.975))
+  
+  p2.3 <- ggplot(out4 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))), aes(x=t)) +
+    geom_pointrange(aes(y=median, ymin=lower, ymax=upper)) +
+    theme_bw() +
+    facet_nested(form ~ strain, scales="fixed", labeller = label_wrap_gen(multi_line=FALSE)) +
+    scale_x_discrete(breaks = levels(out4$t)[c(T, rep(F, 6))]) +
+    scale_y_continuous(breaks=seq(2,10,2)) +
+    theme(panel.grid = element_blank())
+  
+  p2.3
+  
+  removed5 <- out_symp %>% group_by(form, strain, corr, flat, param) 
+  
+  p5 <- ggplot(out6 %>% dplyr::filter(param %in% c("growth", "decay", "peak")) %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))), aes(x=strain, color=type)) +
+    geom_point(aes(y=median)) +
+    geom_errorbar(aes(ymin=lower, ymax=upper), width=0.1) +
+    theme_bw() +
+    facet_wrap(~param, scales="free") 
+  
+  out6 %>% tidyr::pivot_wider(names_from="type", values_from=c("lower", "median", "upper")) %>%
+    mutate(lower=paste0(round(median_lower,1), " (", round(lower_lower,1), "-", round(upper_lower,1), ")"),
+           median=paste0(round(median_median,1), " (", round(lower_median,1), "-", round(upper_median,1), ")"),
+           upper=paste0(round(median_upper,1), " (", round(lower_upper,1), "-", round(upper_upper,1), ")")) %>%
+    dplyr::select(strain, param, lower, median, upper)
+  
+  det_peak_end <- ggarrange(symp_plotter(out6, c("det_to_peak","peak_to_end"), legend="none")[[2]])
+  tot_inf <- ggarrange(symp_plotter(out6, c("total_infection_time"), legend="none")[[2]])
+  peak_symp <- ggarrange(symp_plotter(out6, c("peak_to_symp"), legend="none")[[2]] + theme(plot.margin = margin(0,6,0,6, "cm")))
+  det_symp_end <- ggarrange(symp_plotter(out6, c("det_to_symp","symp_to_end"), legend="none", y_label="days")[[2]])
+  
+  p7 <- ggarrange(det_peak_end, tot_inf, peak_symp, det_symp_end, nrow=4, heights=c(1,1,1,1), widths=c(1,1,0.5,1))
+  
+  vk_CrIs <- removed5 %>% reframe(value=quantile(value, probs=c(0.025, 0.5, 0.975))) %>%
+    mutate(bound=rep(c("lower", "median", "upper"), nrow(.)/3)) %>%
+    tidyr::pivot_wider(
+      id_cols = c("form", "strain", "corr", "flat"),
+      names_from = c("param", "bound"),
+      values_from = c("value")
+    )
+  
+  ggsave(paste0("images/viral_load_comparison_aggregate_",tag,".png"), p)
+  ggsave(paste0("images/viral_load_comparison_samples_",tag,".png"), p2)
+  ggsave(paste0("images/viral_load_comparison_samples_box_",tag,".png"), p2.2)
+  ggsave(paste0("images/viral_load_comparison_samples_pointrange_",tag,".png"), p2.3)
+  ggsave(paste0("images/delay_comparisons_2_",tag,".png"), p7, width=8, height=12)
+  ggsave(paste0("images/vk_comparisons_",tag,".png"), p4)
   
   print(p)
   
-  return(out)
+  return(list(out1, vk_CrIs))
 }
 
-vl_comparison <- vls_comparator(pars=pars6, chain_length=20000)
+vl_comparison <- vls_comparator(pars=pars6 %>% dplyr::filter(form=="thresh_peak"), 
+                                tag="thresh_peak", n_samples=50, n_indiv=50)
 
-vl_comparison[[3]]
+vl_comparison[[2]]
+
+prior_vs_posterior <- function(pars, i, n_samples=1000){
+  output <- output_finder(strain=pars$strain[i], form=pars$form[i], corr=pars$corr[i], flat=pars$flat[i])
+  
+  n_it <- which(is.na(output$MCMC_posteriors))[1]-2
+  start <- (1-pars$chain_length[i])*n_it
+  
+  samples_prior <- mvtnorm::rmvnorm(n=n_samples, mean=output$x$prior_mean, sigma=output$x$prior_cov_final)
+  xa <- c(seq(-5,1.5,length.out=1001))
+  xb <- c(seq(-5,0,length.out=1001))
+  x2 <- c(seq(3,12,length.out=1001))
+  
+  prior_array_a <- matrix(nrow=n_samples, ncol=length(xa))
+  post_array_a <- matrix(nrow=n_samples, ncol=length(xa))
+  prior_array_b <- matrix(nrow=n_samples, ncol=length(xb))
+  post_array_b <- matrix(nrow=n_samples, ncol=length(xb))
+  prior_array_vl <- matrix(nrow=n_samples, ncol=length(x2))
+  post_array_vl <- matrix(nrow=n_samples, ncol=length(x2))
+  iterations <- round(seq(start, n_it, length.out=n_samples))
+  
+  for(i in 1:length(x)){
+    prior_array_a[,i] <- dnorm(x=xa[i], mean=samples_prior[,1], sd=samples_prior[,2])
+    post_array_a[,i] <- dnorm(x=xa[i], 
+                               mean=output$MCMC_output[iterations,1], 
+                               sd=output$MCMC_output[iterations,2])
+    prior_array_b[,i] <- dnorm(x=xb[i], mean=samples_prior[,3], sd=samples_prior[,4])
+    post_array_b[,i] <- dnorm(x=xb[i], 
+                              mean=output$MCMC_output[iterations,3], 
+                              sd=output$MCMC_output[iterations,4])
+    
+    prior_array_vl[,i] <- dnorm(x=x2[i], mean=samples_prior[,5], sd=samples_prior[,6])
+    post_array_vl[,i] <- dnorm(x=x2[i], 
+                              mean=output$MCMC_output[iterations,5], 
+                              sd=output$MCMC_output[iterations,6])
+  }
+  
+  df <- data.frame(strain=output$x$strain,
+                   xa=xa,
+                   xb=xb,
+                   x2=x2,
+                   matrixStats::colQuantiles(prior_array_a, probs=c(0.025, 0.5, 0.975)),
+                   matrixStats::colQuantiles(post_array_a, probs=c(0.025, 0.5, 0.975)),
+                   matrixStats::colQuantiles(prior_array_b, probs=c(0.025, 0.5, 0.975)),
+                   matrixStats::colQuantiles(post_array_b, probs=c(0.025, 0.5, 0.975)),
+                   matrixStats::colQuantiles(prior_array_vl, probs=c(0.025, 0.5, 0.975)),
+                   matrixStats::colQuantiles(post_array_vl, probs=c(0.025, 0.5, 0.975))) %>%
+    magrittr::set_colnames(c("strain", "xa", "xb", "x2", "a_lower_Prior", "a_median_Prior", "a_upper_Prior",
+                             "a_lower_Posterior", "a_median_Posterior", "a_upper_Posterior",
+                             "b_lower_Prior", "b_median_Prior", "b_upper_Prior",
+                             "b_lower_Posterior", "b_median_Posterior", "b_upper_Posterior",
+                             "vl_lower_Prior", "vl_median_Prior", "vl_upper_Prior",
+                             "vl_lower_Posterior", "vl_median_Posterior", "vl_upper_Posterior")) %>%
+    tidyr::gather(param, value, 5:ncol(.)) %>%
+    mutate(vk_param = sub("_.*", "", param),
+           type = sub("^[^_]*_(.*?)_.*$", "\\1", param),
+           pp = sub("^.+_", "", param)) %>%
+    dplyr::select(-param) %>%
+    tidyr::pivot_wider(., names_from=type, values_from=value) %>%
+    mutate(implied = ifelse(vk_param=="a", 0.5+exp(xa), ifelse(vk_param=="b", 0.25+exp(xb), x2)),
+           vk=ifelse(vk_param=="a", "Growth rate", ifelse(vk_param=="b", "Decay rate", "Peak viral load"))) %>%
+    mutate(vk=factor(vk, levels=c("Growth rate", "Decay rate", "Peak viral load")))
+  
+  ab_pp <- ggplot(df %>% dplyr::filter(vk != "Peak viral load"), aes(x=implied)) +
+    geom_line(aes(y=median, color=pp)) +
+    geom_ribbon(aes(ymin=lower, ymax=upper, fill=pp), alpha=0.2) +
+    facet_wrap(~vk, scale="free") +
+    theme_bw() +
+    #lims(x=c(0.5, 5)) +
+    theme(panel.grid=element_blank(),
+          legend.title = element_blank(),
+          legend.position = "none") +
+          #strip.background = element_rect(color="white", fill="white", size=0.5, linetype="solid"),
+          #strip.text.x = element_text(size=12, hjust = 0.5, margin=margin(l=2, b=2), color="black"),
+          #panel.border=element_rect(color="black")) +
+    labs(y="Probability density", x=expression("Viral load (" * log[10] * " RNA copies mL"^{-1} * "day"^{-1} * ")"))
+    
+  vl_pp <- ggplot(df %>% dplyr::filter(vk_param == "vl"), aes(x=implied)) +
+    geom_line(aes(y=median, color=pp)) +
+    geom_ribbon(aes(ymin=lower, ymax=upper, fill=pp), alpha=0.2) +
+    facet_wrap(~vk, scale="free") +
+    theme_bw() +
+    #lims(x=c(0.5, 5)) +
+    theme(panel.grid=element_blank(),
+          legend.position = "none") +
+    labs(y="Probability density", x=expression("Viral load (" * log[10] * " RNA copies mL"^{-1} * ")"))
+  
+  p_pp <- ggarrange(ab_pp, vl_pp, nrow=2)
+  
+  ggsave(paste0("images/",output$x$strain,"_vk_prior_posterior_",".png"), p_pp, width=8, height=6)
+  
+  
+}
+
+for(i in 1:nrow(pars)) prior_vs_posterior(pars, i)
 
 output <- output_finder("all", "peak", flat=1, corr=2)
 start=40000
