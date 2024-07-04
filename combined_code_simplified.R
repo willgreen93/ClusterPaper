@@ -229,7 +229,7 @@ input_generator_react <- function(strain, n_iterations=5e5, parameters=NA, test_
   print(p)
   
   ### sort priors
-  prior_output <- output_finder(strain=strain, form="incidence", corr=4, flat=0)
+  prior_output <- output_finder(strain="delta", form="thresh", corr=6, flat=0)
   n_it <- which(is.na(prior_output$MCMC_posteriors))[1]-1
   
   vl_prior_means <- colMeans(prior_output$MCMC_output[(n_it-20000):n_it,1:8])
@@ -294,7 +294,7 @@ input_generator_react <- function(strain, n_iterations=5e5, parameters=NA, test_
 }
 
 x0 <- input_generator(corr=0, flat=0, form="thresh")
-x1 <- input_generator_react(strain="all", n_iterations=5e5, parameters=NA, test_pop=1e7, proposal_type="MH", cov_matrix=NA, ncores=32, ignored_pars=c(7,8), cov_start=100000)
+x1 <- input_generator_react(strain="all", n_iterations=5e5, parameters=NA, test_pop=1e7, proposal_type="MH", cov_matrix=NA, ncores=32, ignored_pars=c(7,8), cov_start=40000)
 
 Mn <- task_create_expr(MCMC_function(x1), resources=resources)  
 task_log_show(Mn)
@@ -307,7 +307,7 @@ output_continuing_function_react <- function(){
   
   input <- output$x
   input$proposal_type="Cov"
-  input$cov_matrix = cov(output$MCMC_output[(n_it-20000):n_it,])/length(output$x$parameters)
+  input$cov_matrix = cov(output$MCMC_output[(n_it-100000):n_it,])/length(output$x$parameters)
   
   input$parameters <- output$MCMC_output[n_it,]
   
@@ -418,6 +418,7 @@ for(i in 1:nrow(pars)){
 }
 task_log_show(M5)
 
+
 output_combining_function <- function(strain, form, corr, flat){
   outputs <- file.info(paste0(strain,"/",output_list(strain, form, corr, flat, recentness))) %>% arrange(ctime)
   output_names <- rownames(outputs)
@@ -462,15 +463,108 @@ for(i in 1:nrow(pars_new)) output_combining_function(strain=pars_new$strain[i], 
 
 out <- output_finder(strain="alpha", form="thresh_peak", corr=6, flat=0)
 
+phase_shift_plotter <- function(pars){
+  storage <- data.frame(delay=numeric(), phase=character(), mean_viral_load=numeric(), se_viral_load=numeric(), strain=character())
+  next_line <- 1
+  
+  for(i in pars$strain %>% unique()){
+    output <- output_finder(i, form="thresh", corr=6, flat=0)
+  
+    delay <- output$x$data_array %>% as.data.frame.table() %>% magrittr::set_colnames(c("vl", "date", "delay", "count")) %>%
+      mutate(vl=as.numeric(sub("^[^_]*_", "", vl)),
+             delay=sub("^[^_]*_", "", delay))
+    
+    data_cases <- read.csv("data/UK_covid_testing_data.csv") %>% dplyr::select(date, newCasesBySpecimenDate) %>%
+      dplyr::arrange(date) %>%
+      mutate(rolling_average = zoo::rollmean(newCasesBySpecimenDate, 7, fill=NA)) %>%
+      mutate(growth=lead(rolling_average,3)/lag(rolling_average,3)) %>%
+      mutate(phase = ifelse(growth > 1.1, "Growing", ifelse(growth < 0.9, "Declining", "neutral"))) %>%
+      dplyr::select(date, phase)
+    
+    joined_df <- left_join(delay, data_cases, by="date")
+    
+    result <- joined_df %>%
+      tidyr::uncount(count) %>%
+      group_by(delay, phase) %>%
+      summarize(mean_viral_load = mean(vl),
+                se_viral_load = sd(vl) / sqrt(n())) %>%
+      mutate(delay=as.numeric(delay))
+    
+    storage[next_line:(next_line+nrow(result)-1),] <- result %>% mutate(strain=output$x$strain)
+    next_line <- next_line+nrow(result)
+  }
+  
+  storage_plotting <- storage %>%
+    mutate(strain_mapped = case_when(
+      strain == "alpha" ~ "Alpha",
+      strain == "delta" ~ "Delta",
+      strain == "omicron" ~ "Omicron",
+      strain == "wt" ~ "Wild type",
+      TRUE ~ strain
+    )) %>%
+    mutate(strain_mapped=factor(strain_mapped, levels=c("Wild type", "Alpha", "Delta", "Omicron")))
+  
+  p_ps <- ggplot(storage_plotting %>% dplyr::filter(phase!="neutral"), aes(x=delay, group=phase)) +
+    geom_line(aes(y=mean_viral_load, linetype=phase, color=strain_mapped), size=1) + 
+    geom_ribbon(aes(ymin=mean_viral_load-se_viral_load, ymax=mean_viral_load+se_viral_load, fill=strain_mapped), color="transparent", alpha=0.3) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.title = element_blank(),
+          axis.line = element_line(colour = "black"),
+          strip.background = element_rect(color="transparent", fill="transparent", size=0.5, linetype="solid"),
+          strip.text.x = element_text(size=12, hjust = 0, margin=margin(l=2, b=2), color="black"),
+          panel.border=element_blank(),
+          axis.line.y = element_line(color="black"),
+          axis.title.x = element_text(size=12, color="black", margin=margin(t=10)),
+          axis.title.y = element_text(size=12, color="black"),
+          axis.text.x = element_text(size=12, color="black"),
+          axis.text.y = element_text(size=12, color="black")) +
+    scale_linetype_manual(values=c("dotted", "longdash")) +
+    facet_wrap(~strain_mapped, nrow=1) +
+    labs(y=expression(paste("Mean Viral Load (", log[10]," RNA copies mL"^{-1},")", sep = "")), x="Time from symptom onset (days)") +
+    guides(color = FALSE, fill = FALSE)
+  
+  p_ps
+  
+  ggsave("images/phase_shift.png", p_ps, width=9, height=4)
+  
+  p_ps2 <- ggplot(storage_plotting %>% dplyr::filter(phase!="neutral"), aes(x=delay, fill=phase, color=phase)) +
+    geom_line(aes(y=mean_viral_load)) + 
+    geom_ribbon(aes(ymin=mean_viral_load-se_viral_load, ymax=mean_viral_load+se_viral_load), alpha=0.4, color="transparent") +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.title = element_blank(),
+          axis.line = element_line(colour = "black"),
+          strip.background = element_rect(color="transparent", fill="transparent", size=0.5, linetype="solid"),
+          strip.text.x = element_text(size=12, hjust = 0, margin=margin(l=2, b=2), color="black"),
+          panel.border=element_blank(),
+          axis.line.y = element_line(color="black"),
+          axis.title.x = element_text(size=12, color="black", margin=margin(t=10)),
+          axis.title.y = element_text(size=12, color="black"),
+          axis.text.x = element_text(size=12, color="black"),
+          axis.text.y = element_text(size=12, color="black")) +
+    scale_linetype_manual(values=c("dotted", "longdash")) +
+    facet_wrap(~strain_mapped, nrow=1) +
+    labs(y=expression(paste("Mean Viral Load (", log[10]," RNA copies mL"^{-1},")", sep = "")), x="Time from symptom onset (days)")
+  
+  p_ps2
+  
+  ggsave("images/phase_shift2.png", p_ps2, width=9, height=4)
+}
+
+pars <- pars6
+
 comparison_loop_1D <- function(output, n_samples, start){
   
   n_it <- which(is.na(output$MCMC_output[,1])==TRUE)[1]-2
+  strain <- output$x$strain
+  strain_col <- ifelse(strain=="wt", "#F8766D", ifelse(strain=="alpha", "#7CAE00", ifelse(strain=="delta", "#00BFC4", "#C77CFF")))
   
   d_sums <- list()
   storage <- list()
   plot_dfs <- list()
   plot_list <- list()
-  variables <- c("viral_load", "day", "test_day")
+  variables <- c("Viral load", "Date", "Day of test after onset")
   
   for (d in 1:3){
     d_sums[[d]] <- apply(output$x$data_array[-1,,], d, sum, na.rm=T)
@@ -498,17 +592,23 @@ comparison_loop_1D <- function(output, n_samples, start){
   for(d in 1:3){
     plot_dfs[[d]] <- data.frame(x=as.numeric(dimnames(p_array)[[d]]), 
                                 p=matrixStats::colQuantiles(storage[[d]], probs=c(0.025, 0.5, 0.975)), 
-                                d=d_sums[[d]]) %>% magrittr::set_colnames(c(variables[d], "lower", "median", "upper", "count")) 
+                                d=d_sums[[d]]) %>% magrittr::set_colnames(c(variables[d], "lower", "median", "upper", "Count")) 
     
-    if(d==2) plot_dfs[[d]] <- plot_dfs[[2]] %>% dplyr::filter(count>100)
+    if(d==2){
+      plot_dfs[[d]] <- plot_dfs[[2]] %>% dplyr::filter(Count>100) %>% mutate(Date=as.Date(rownames(.)))
+      x_format <- scale_x_date(labels=date_format("%b-%y"))
+    } 
+    if(d != 2) x_format <- scale_x_continuous()
     
     plot_list[[d]] <- ggplot(plot_dfs[[d]], aes(x=.data[[variables[d]]])) +
-      geom_point(aes(y=count)) +
-      geom_line(aes(y=median)) +
-      geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.3) +
-      theme_bw() + 
-      scale_y_log10()
-    
+      geom_point(aes(y=Count), color=strain_col) +
+      geom_line(aes(y=median), color=strain_col) +
+      geom_ribbon(aes(ymin=lower, ymax=upper), fill=strain_col, alpha=0.3) +
+      theme_bw() +
+      theme(panel.grid = element_blank()) +
+      scale_y_log10() +
+      x_format
+      
     #print(plot_list[[d]])
     print(d)
   } 
@@ -518,6 +618,8 @@ comparison_loop_1D <- function(output, n_samples, start){
 
 comparison_loop_2D <- function(output, n_samples, start){
   n_it <- which(is.na(output$MCMC_output[,1])==TRUE)[1]-2
+  strain <- output$x$strain
+  strain_col <- ifelse(strain=="wt", "#F8766D", ifelse(strain=="alpha", "#7CAE00", ifelse(strain=="delta", "#00BFC4", "#C77CFF")))
   
   iterations <- round(seq(start, n_it, length.out=n_samples))
   
@@ -550,21 +652,28 @@ comparison_loop_2D <- function(output, n_samples, start){
     tidyr::spread(Var1, Freq) %>%
     magrittr::set_colnames(c("viral_load", "test_day", "lower", "median", "upper")) %>%
     left_join(d_sum, by=c("viral_load","test_day")) %>%
-    mutate(viral_load=as.numeric(as.character(viral_load)), test_day=as.numeric(as.character(test_day)))
+    mutate(viral_load=as.numeric(as.character(viral_load)), test_day=as.numeric(as.character(test_day))) %>%
+    mutate(test_day_plotting = paste0("Test day = ", test_day))
   
   output_plot <- ggplot(plotting_df, aes(x=viral_load)) +
-    geom_point(aes(y=number)) +
-    geom_line(aes(y=median)) +
-    geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.3) +
-    facet_wrap(~test_day) +
+    geom_point(aes(y=number), color=strain_col) +
+    geom_line(aes(y=median), color=strain_col) +
+    geom_ribbon(aes(ymin=lower, ymax=upper), fill=strain_col, alpha=0.3) +
+    facet_wrap(~test_day_plotting) +
     theme_bw() + 
-    scale_y_log10()
+    scale_y_log10(labels=label_number()) +
+    theme(panel.grid=element_blank(),
+          strip.background = element_rect(fill=strain_col, color=strain_col),
+          strip.text = element_text(hjust=0, color="white")) +
+    labs(x=expression(paste("Viral Load (", log[10]," RNA copies mL"^{-1},")", sep = "")), y="Count")
+  
+  output_plot
   
   return(output_plot)
   
 }
 
-output_plotter <- function(output, chain_length, n_samples=100){
+output_plotter <- function(output, chain_length, n_samples=10){
   #output <- output_finder(strain, form, corr, flat)
   n_it <- which(is.na(output$MCMC_output[,1])==TRUE)[1]-2
   if(chain_length<1) start = (1-chain_length)*n_it
@@ -588,9 +697,9 @@ output_plotter <- function(output, chain_length, n_samples=100){
   comp1 <- comparison_loop_1D(output, n_samples, start=start)
   comp2 <- comparison_loop_2D(output, n_samples, start=start)
   
-  plot <- ggpubr::ggarrange(comp1[[1]], comp1[[2]], comp1[[3]], comp2, nrow=2, ncol=2)
+  plot <- ggpubr::ggarrange(comp1[[1]], comp1[[2]], comp1[[3]], comp2, nrow=2, ncol=2, labels=c("A", "B", "C", "D"))
   print(plot)
-  ggsave(paste0(output$x$strain,"/images/fitting/",output$x$strain,"_",output$x$form,"_corr=", output$x$corr,"_flat=", output$x$flat,"_",output$x$tag,
+  ggsave(paste0("images/fitting_",output$x$strain,"_",output$x$form,"_corr=", output$x$corr,"_flat=", output$x$flat,"_",output$x$tag,
                       "_vg=", output$x$vg,"_mult3.png"), plot, width=7, height=7)
 }
 
@@ -1304,7 +1413,7 @@ mapping_func <- function(out){
   return(mapped_data)
 }
 
-symp_plotter <- function(out6, params_interest, legend="none", y_label=NULL){
+symp_plotter <- function(out6, params_interest, param_labels, legend="none", y_label=NULL){
   
   out6_adj <- mapping_func(out6) %>% mutate(strain_plotting=factor(strain_plotting, levels=c("Wild type", "Alpha", "Delta", "Omicron")))
   
@@ -1327,9 +1436,9 @@ symp_plotter <- function(out6, params_interest, legend="none", y_label=NULL){
     geom_point(aes(y=median, size=0.4)) +
     geom_errorbar(aes(ymin=lower, ymax=upper), width=0.5) +
     geom_crossbar(data=mapping_func(out6_adj) %>% dplyr::filter(param %in% params_interest), aes(ymin=lower, y=median, ymax=upper, alpha=0.1), width=0.5, color="transparent") +
-    theme_bw() +
-    facet_wrap(~param_plotting, scales="free_x") +
+    facet_wrap(~param_plotting, labeller = labeller(param_plotting = c("det_to_peak" = "A", "peak_to_end" = "B")), scales="free_x") +
     coord_flip() +
+    theme_bw() +
     theme(legend.position = legend) +
     labs(y=y_label, x=NULL) +
     theme(panel.grid = element_blank(),
@@ -1430,10 +1539,10 @@ vls_comparator <- function(pars, tag="", n_samples=50, n_indiv=50){
   p2 <- ggplot(out2 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))) %>%
                  mutate(strain=recode(strain, "wt"="Wild type",
                                       "alpha"="Alpha", "delta"="Delta", "omicron"="Omicron")), aes(x=t, y=value, group=ID)) +
-    geom_line(aes(color=strain), alpha=0.03) +
+    geom_line(aes(color=strain), alpha=0.06) +
     theme_bw() +
     theme(legend.position="none") +
-    facet_grid(~strain, scales="fixed", labeller = label_wrap_gen(multi_line=FALSE)) +
+    facet_grid(~strain, scales="free_y", labeller = label_wrap_gen(multi_line=FALSE)) +
     geom_line(data=out1 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron"))) %>%
                 mutate(strain=recode(strain, "wt"="Wild type",
                                      "alpha"="Alpha", "delta"="Delta", "omicron"="Omicron")), aes(x=t, y=median, group=1), size=1) +
@@ -1441,9 +1550,10 @@ vls_comparator <- function(pars, tag="", n_samples=50, n_indiv=50){
     scale_y_continuous(breaks=seq(2,10,2), name = expression(paste("Viral Load (", log[10]," RNA copies mL"^{-1},")", sep = ""))) +
     theme(panel.grid = element_blank(),
           axis.line = element_line(colour = "black"),
-          strip.background = element_rect(color="white", fill="white", size=0.5, linetype="solid"),
+          strip.background = element_rect(color="transparent", fill="transparent", size=0.5, linetype="solid"),
           strip.text.x = element_text(size=12, hjust = 0, margin=margin(l=2, b=2), color="black"),
           panel.border=element_blank(),
+          axis.line.y = element_line(color="black"),
           axis.title.x = element_text(size=12, color="black", margin=margin(t=10)),
           axis.title.y = element_text(size=12, color="black"),
           axis.text.x = element_text(size=12, color="black"),
@@ -1451,6 +1561,8 @@ vls_comparator <- function(pars, tag="", n_samples=50, n_indiv=50){
     labs(x="Time from peak (days)") 
   
   p2
+  
+  #ggsave("images/methods_vk_simul.png", width=3.5, height=3.5)
   
   p2.2 <- ggplot(out3 %>% mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron")), t=factor(t, levels=c(-14:28))), aes(x=t, y=value)) +
     geom_boxplot(outlier.shape=NA) +
@@ -1488,9 +1600,13 @@ vls_comparator <- function(pars, tag="", n_samples=50, n_indiv=50){
     mutate(lower=paste0(round(median_lower,1), " (", round(lower_lower,1), "-", round(upper_lower,1), ")"),
            median=paste0(round(median_median,1), " (", round(lower_median,1), "-", round(upper_median,1), ")"),
            upper=paste0(round(median_upper,1), " (", round(lower_upper,1), "-", round(upper_upper,1), ")")) %>%
-    dplyr::select(strain, param, lower, median, upper)
+    dplyr::select(param, strain, lower, median, upper) %>% 
+    mutate(strain=factor(strain, levels=c("wt", "alpha", "delta", "omicron")),
+           param=factor(param, levels=c("growth","decay","peak", "det_to_peak","peak_to_end","total_infection_time",
+                                        "det_to_symp","symp_to_end","peak_to_symp"))) %>%
+    arrange(param, strain) %>% print(n=36)
   
-  det_peak_end <- ggarrange(symp_plotter(out6, c("det_to_peak","peak_to_end"), legend="none")[[2]])
+  det_peak_end <- ggarrange(symp_plotter(out6, params_interest=c("det_to_peak","peak_to_end"), legend="none")[[2]])
   tot_inf <- ggarrange(symp_plotter(out6, c("total_infection_time"), legend="none")[[2]])
   peak_symp <- ggarrange(symp_plotter(out6, c("peak_to_symp"), legend="none")[[2]] + theme(plot.margin = margin(0,6,0,6, "cm")))
   det_symp_end <- ggarrange(symp_plotter(out6, c("det_to_symp","symp_to_end"), legend="none", y_label="days")[[2]])
@@ -1506,7 +1622,7 @@ vls_comparator <- function(pars, tag="", n_samples=50, n_indiv=50){
     )
   
   ggsave(paste0("images/viral_load_comparison_aggregate_",tag,".png"), p)
-  ggsave(paste0("images/viral_load_comparison_samples_",tag,".png"), p2)
+  ggsave(paste0("images/viral_load_comparison_samples_",tag,".png"), p2, width=9, height=4)
   ggsave(paste0("images/viral_load_comparison_samples_box_",tag,".png"), p2.2)
   ggsave(paste0("images/viral_load_comparison_samples_pointrange_",tag,".png"), p2.3)
   ggsave(paste0("images/delay_comparisons_2_",tag,".png"), p7, width=8, height=12)
@@ -1518,20 +1634,20 @@ vls_comparator <- function(pars, tag="", n_samples=50, n_indiv=50){
 }
 
 vl_comparison <- vls_comparator(pars=pars6 %>% dplyr::filter(form=="thresh_peak"), 
-                                tag="thresh_peak", n_samples=50, n_indiv=50)
+                                tag="thresh_peak", n_samples=10, n_indiv=10)
 
 vl_comparison[[2]]
 
-prior_vs_posterior <- function(pars, i, n_samples=1000){
-  output <- output_finder(strain=pars$strain[i], form=pars$form[i], corr=pars$corr[i], flat=pars$flat[i])
+prior_vs_posterior <- function(pars, m, n_samples=1000){
+  output <- output_finder(strain=pars$strain[m], form=pars$form[m], corr=pars$corr[m], flat=pars$flat[m])
   
   n_it <- which(is.na(output$MCMC_posteriors))[1]-2
-  start <- (1-pars$chain_length[i])*n_it
+  start <- (1-pars$chain_length[m])*n_it
   
   samples_prior <- mvtnorm::rmvnorm(n=n_samples, mean=output$x$prior_mean, sigma=output$x$prior_cov_final)
-  xa <- c(seq(-5,1.5,length.out=1001))
-  xb <- c(seq(-5,0,length.out=1001))
-  x2 <- c(seq(3,12,length.out=1001))
+  xa <- c(seq(-5,1.5,length.out=11))
+  xb <- c(seq(-5,0,length.out=11))
+  x2 <- c(seq(3,12,length.out=11))
   
   prior_array_a <- matrix(nrow=n_samples, ncol=length(xa))
   post_array_a <- matrix(nrow=n_samples, ncol=length(xa))
@@ -1541,7 +1657,9 @@ prior_vs_posterior <- function(pars, i, n_samples=1000){
   post_array_vl <- matrix(nrow=n_samples, ncol=length(x2))
   iterations <- round(seq(start, n_it, length.out=n_samples))
   
-  for(i in 1:length(x)){
+  strain_col <- ifelse(pars$strain[m]=="wt", "#F8766D", ifelse(pars$strain[m]=="alpha", "#7CAE00", ifelse(pars$strain[m]=="delta", "#00BFC4", "#C77CFF")))
+  
+  for(i in 1:length(xa)){
     prior_array_a[,i] <- dnorm(x=xa[i], mean=samples_prior[,1], sd=samples_prior[,2])
     post_array_a[,i] <- dnorm(x=xa[i], 
                                mean=output$MCMC_output[iterations,1], 
@@ -1584,7 +1702,7 @@ prior_vs_posterior <- function(pars, i, n_samples=1000){
     mutate(vk=factor(vk, levels=c("Growth rate", "Decay rate", "Peak viral load")))
   
   ab_pp <- ggplot(df %>% dplyr::filter(vk != "Peak viral load"), aes(x=implied)) +
-    geom_line(aes(y=median, color=pp)) +
+    geom_line(aes(y=median, color=pp, linetype=pp)) +
     geom_ribbon(aes(ymin=lower, ymax=upper, fill=pp), alpha=0.2) +
     facet_wrap(~vk, scale="free") +
     theme_bw() +
@@ -1595,26 +1713,71 @@ prior_vs_posterior <- function(pars, i, n_samples=1000){
           #strip.background = element_rect(color="white", fill="white", size=0.5, linetype="solid"),
           #strip.text.x = element_text(size=12, hjust = 0.5, margin=margin(l=2, b=2), color="black"),
           #panel.border=element_rect(color="black")) +
-    labs(y="Probability density", x=expression("Viral load (" * log[10] * " RNA copies mL"^{-1} * "day"^{-1} * ")"))
-    
+    labs(y="Probability density", x=expression("Viral load (" * log[10] * " RNA copies mL"^{-1} * "day"^{-1} * ")")) +
+    scale_fill_manual(values=c(strain_col, "black")) +
+    scale_color_manual(values=c(strain_col, "black")) +
+    scale_linetype_manual(values=c("solid", "dashed"))
+  
+  
   vl_pp <- ggplot(df %>% dplyr::filter(vk_param == "vl"), aes(x=implied)) +
-    geom_line(aes(y=median, color=pp)) +
+    geom_line(aes(y=median, color=pp, linetype=pp)) +
     geom_ribbon(aes(ymin=lower, ymax=upper, fill=pp), alpha=0.2) +
     facet_wrap(~vk, scale="free") +
     theme_bw() +
     #lims(x=c(0.5, 5)) +
     theme(panel.grid=element_blank(),
           legend.position = "none") +
-    labs(y="Probability density", x=expression("Viral load (" * log[10] * " RNA copies mL"^{-1} * ")"))
+    labs(y="Probability density", x=expression("Viral load (" * log[10] * " RNA copies mL"^{-1} * ")"))+
+    scale_fill_manual(values=c(strain_col, "black")) +
+    scale_color_manual(values=c(strain_col, "black")) +
+    scale_linetype_manual(values=c("solid", "dashed"))
   
   p_pp <- ggarrange(ab_pp, vl_pp, nrow=2)
   
   ggsave(paste0("images/",output$x$strain,"_vk_prior_posterior_",".png"), p_pp, width=8, height=6)
   
-  
+  return(df)
 }
 
 for(i in 1:nrow(pars)) prior_vs_posterior(pars, i)
+
+prior_vs_posterior_single_plot <- function(pars){
+  df1 <- data.frame(strain=character(), xa=numeric(), xb=numeric(), x2=numeric(), pp=character(), lower=numeric(), median=numeric(),
+                    upper=numeric(), implied=numeric(), vk=factor())
+  for(i in 1:nrow(pars)){
+    df1 <- rbind(df1,prior_vs_posterior(pars, i, n_samples=1000))
+  }
+  
+  vl_pp <- ggplot(df %>% dplyr::filter(vk_param == "vl", pp=="Posterior"), aes(x=implied)) +
+    geom_line(aes(y=median, color=strain)) +
+    geom_ribbon(aes(ymin=lower, ymax=upper, fill=strain), alpha=0.2) +
+    facet_wrap(~vk, scale="free") +
+    theme_bw() +
+    #lims(x=c(0.5, 5)) +
+    theme(panel.grid=element_blank(),
+          legend.position = "none") +
+    labs(y="Probability density", x=expression("Viral load (" * log[10] * " RNA copies mL"^{-1} * ")"))+
+    scale_fill_manual(values=c(strain_col, "black")) +
+    scale_color_manual(values=c(strain_col, "black")) +
+    scale_linetype_manual(values=c("solid", "dashed"))
+  
+  
+}
+
+simple_prior_vs_posterior <- function(pars, m, n_samples=1000){
+  output <- output_finder(strain=pars$strain[m], form=pars$form[m], corr=pars$corr[m], flat=pars$flat[m])
+  
+  output$x$prior_mean
+  output$x$prior_sds
+  
+  n_it <- which(is.na(output$MCMC_posteriors))[1]-2
+  start <- (1-pars$chain_length[m])*n_it
+  
+  prior <- rnorm(n=10000, mean=output$x$prior_mean["a_bar"], sd=output$x$prior_sds["a_bar"])
+  posterior <- output$MCMC_output[seq(((1-pars$chain_length[m])*(n_it-2)),n_it,length.out = 10000),"a_bar"]
+  
+  
+}
 
 output <- output_finder("all", "peak", flat=1, corr=2)
 start=40000
@@ -1722,6 +1885,85 @@ inc_period_plotter(output=output_finder(strain="wt", form="incidence", corr=5, f
 inc_period_plotter(output=output_finder(strain="wt", form="peak", corr=5, flat=0), n_samples=10)
 inc_period_plotter(output=output_finder(strain="wt", form="thresh", corr=5, flat=0), n_samples=10)
 inc_period_plotter(output=output_finder(strain="wt", form="thresh_peak", corr=5, flat=0), n_samples=10)
+
+output_react_fit <- function(output, n_samples){
+  output_react <- readRDS("all/react/react_all__thresh_Cov_ignored_7,8__vg=6_80000_2024-03-25_mult2.rds")
+  n_it <- which(is.na(output_react$MCMC_posteriors))[1]-2
+  start <- 10000
+  
+  dates_include <- as.Date(colnames(output_react$x$data_array_raw)[colSums(output_react$x$data_array)!=0])
+  
+  iterations <- round(seq(start, n_it, length.out=n_samples))
+  
+  infecteds_react <- matrix(ncol=ncol(output_react$x$data_array_raw), nrow=n_samples)
+  
+  for(i in 1:length(iterations)){
+    infecteds_react[i,] <- infecteds_generator(parameters=output_react$MCMC_output[iterations[i],], 
+                                               knots=output_react$x$knots, population=output_react$x$population, max_day=output_react$x$max_day, 
+                                               form=output_react$x$form)
+    
+  }
+  
+  incidence <- data.frame(date=as.Date(colnames(output_react$x$data_array_raw)),
+             lower=matrixStats::colQuantiles(infecteds_react, probs=c(0.025, 0.5, 0.975))) %>%
+    magrittr::set_colnames(c("date", "lower", "median", "upper"))
+  
+  incidence[incidence$date %in% dates_include,2:4] <- NA
+  
+  covid_testing_data <- read.csv("data/UK_covid_testing_data.csv") %>%
+    dplyr::select(date, newCasesBySpecimenDate) %>%
+    mutate(date=as.Date(date))
+  
+  ggplot(incidence %>% left_join(., covid_testing_data, by="date"), aes(x=date)) +
+    geom_line(aes(y=median)) +
+    geom_point(aes(y=newCasesBySpecimenDate*10)) +
+    geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.2) +
+    theme_bw() +
+    theme(panel.grid=element_blank()) +
+    lims(y=c(0,1e6))
+  
+  dist_vls <- matrix(ncol=nrow(output_react$x$data_array_raw)-1, nrow=n_samples)
+  dist_days <- matrix(ncol=ncol(output_react$x$data_array_raw), nrow=n_samples)
+  
+  for(i in 1:length(iterations)){
+    print(i)
+    dist <- round(t(t(likelihood_REACT(parameters=output_react$MCMC_output[iterations[i],], 
+                             knots=output_react$x$knots, vk=1, vg=output_react$x$vg, max_day=output_react$x$max_day, population=output_react$x$population, 
+                             data_array=output_react$x$data_array, test_pop=output_react$x$test_pop, ncores=output_react$x$ncores, 
+                             form=output_react$x$form, symp_delay_lim=output_react$x$symp_delay_lim, stop=T))*colSums(output_react$x$data_array_raw)),1)
+    
+    dist_vls[i,] <- rev(rowSums(dist, na.rm=T))[-1]/sum(dist, na.rm=T)
+    dist_days[i,] <- colSums(dist[-nrow(dist),], na.rm=T)/colSums(dist)
+
+  }
+  
+  positives <- data.frame(date=as.Date(colnames(output_react$x$data_array_raw)),
+                          lower=matrixStats::colQuantiles(dist_days, probs=c(0.025, 0.5, 0.975)),
+                           count=colSums(output_react$x$data_array_raw[-1,])/colSums(output_react$x$data_array_raw)) %>%
+    magrittr::set_colnames(c("date", "lower", "median", "upper", "count"))
+  
+  vl_df <- data.frame(vl=as.numeric(sub(".*?_", "", rownames(output_react$x$data_array_raw)[-1])),
+                      lower=matrixStats::colQuantiles(dist_vls, probs=c(0.025, 0.5, 0.975)),
+                      count=rowSums(output_react$x$data_array_raw)[-1]/sum(output_react$x$data_array_raw)) %>%
+    magrittr::set_colnames(c("vl", "lower", "median", "upper", "count"))
+  
+  ggplot(positives %>% dplyr::filter(count!=0), aes(x=date)) +
+    geom_line(aes(y=median)) +
+    geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.2) +
+    geom_point(aes(y=count)) +
+    theme_bw() +
+    theme(panel.grid=element_blank())
+
+  ggplot(vl_df, aes(x=vl)) +
+    geom_line(aes(y=median)) +
+    geom_ribbon(aes(ymin=lower, ymax=upper), alpha=0.2) +
+    geom_point(aes(y=count)) +
+    theme_bw() +
+    theme(panel.grid=element_blank())
+  
+}
+
+
 
 #####
 output <- readRDS("all/2024-01-17_all_105000_N_incidence_MH_ignored_NA_non-differentiable___.rds")

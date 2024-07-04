@@ -55,8 +55,8 @@ p_array_func <- function(parameters, knots, vk, vg, max_day, population, data_ar
     days <- 0:max_inf
     infecteds <- infecteds_generator(parameters, knots, population, max_day, form) # generate infecteds
     
-    p_ct_tau_mat <- ct_func2_cpp_all(a=parameters[c(1,2)], b=parameters[c(3,4)], c=parameters[c(5,6)], l=parameters[c(7,8)], p=c(max_inf-1, vl_range[1], vl_range[2], test_pop), nthreads=ncores, pseeds=pseeds, vg=vg, vk, vt=1, stoch=stoch)
-    dimnames(p_ct_tau_mat) <- list(-inf_lims:inf_lims, rev(vl_vec))
+    #p_ct_tau_mat <- ct_func2_cpp_all(a=parameters[c(1,2)], b=parameters[c(3,4)], c=parameters[c(5,6)], l=parameters[c(7,8)], p=c(max_inf-1, vl_range[1], vl_range[2], test_pop), nthreads=ncores, pseeds=pseeds, vg=vg, vk, vt=1, stoch=stoch)
+    #dimnames(p_ct_tau_mat) <- list(-inf_lims:inf_lims, rev(vl_vec))
     
     if(form=="thresh") p_ct_tau_mat <- ct_func2_cpp_thresh(a=parameters[c(1,2)], b=parameters[c(3,4)], c=parameters[c(5,6)], l=parameters[c(7,8)], t=parameters[c(9,10,11)], p=c(max_inf-1, vl_range[1], vl_range[2], test_pop), nthreads=ncores, pseeds=pseeds, vg=vg, vk, vt=1, stoch=stoch)
     if(form=="thresh_peak") p_ct_tau_mat <- ct_func2_cpp_thresh_peak(a=parameters[c(1,2)], b=parameters[c(3,4)], c=parameters[c(5,6)], l=parameters[c(7,8)], t=parameters[c(9,10,11)], p=c(max_inf-1, vl_range[1], vl_range[2], test_pop), nthreads=ncores, pseeds=pseeds, vg=vg, vk, vt=1, stoch=stoch)
@@ -148,7 +148,7 @@ likelihood_function3 <- function(parameters, knots, vk, vg, max_day, population,
   return(likelihood)
 }
 
-likelihood_REACT <- function(parameters, knots, vk, vg, max_day, population, data_array, test_pop, ncores, form, symp_delay_lim){
+likelihood_REACT <- function(parameters, knots, vk, vg, max_day, population, data_array, test_pop, ncores, form, symp_delay_lim, stop=F){
   p_array <- p_array_func(parameters, knots, vk, vg, max_day, population, data_array, test_pop, ncores, form, symp_delay_lim, stoch=0.5, name=T)
   
   infecteds <- round(infecteds_generator(parameters, knots, population, max_day, form))
@@ -161,6 +161,8 @@ likelihood_REACT <- function(parameters, knots, vk, vg, max_day, population, dat
   
   N_matrix[nrow(N_matrix),] <- population-colSums(N_matrix[1:(nrow(N_matrix)-1),])
   p_matrix <- N_matrix/population
+  
+  if(stop==T) return(p_matrix)
   
   likelihood <- sum(data_array[nrow(data_array):1,(31:max_day)] * log(p_matrix[,31:max_day]))
   

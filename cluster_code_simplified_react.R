@@ -35,7 +35,7 @@ MCMC_function <- function(x){
   prior_cov_final <- x$prior_cov_final
   lower_bound <- x$lower_bound
   
-  #Rcpp::sourceCpp("will3p_inc_vl_reduced.cpp")
+  Rcpp::sourceCpp("will3p_inc_vl_reduced.cpp")
   Rcpp::sourceCpp("will3p_peak_vl_reduced.cpp")
   Rcpp::sourceCpp("will3p_thresh_vl_reduced2.cpp")
   Rcpp::sourceCpp("will3p_thresh_peak_vl_reduced2.cpp")

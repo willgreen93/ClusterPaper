@@ -55,7 +55,7 @@ duplicated_rows <- which(duplicated(df_c_raw[, c("individual", "t", "PersonID", 
 df_c = df_c_raw[-duplicated_rows,]
 
 parameter_list_generator <- function(vl_df, formula){
-  three_dps <- vl_df %>% filter(vl != vl_min) %>% group_by(PersonID) %>% summarise(non_LOD_count = n()) %>% filter(non_LOD_count >= 3) %>% dplyr::select(PersonID) %>% pull() 
+  three_dps <- vl_df %>% dplyr::filter(vl != vl_min) %>% group_by(PersonID) %>% summarise(non_LOD_count = n()) %>% dplyr::filter(non_LOD_count >= 3) %>% dplyr::select(PersonID) %>% pull() 
   #growth_data <- vl_df %>% group_by(PersonID) %>% filter(vl != vl_min, t<0) %>% select(PersonID) %>% pull() %>% unique()
   #initial_lod <- vl_df %>% group_by(PersonID) %>% filter(t == min(t), vl==vl_min) %>% select(PersonID) %>% pull()
   
@@ -113,8 +113,8 @@ fitting_func <- function(stan_model, vl_df, formula, iter, chains, cores, seed=1
   
   covariance_matrix <- cov(as.matrix(combined_samples))
   
-  saveRDS(combined, paste0("longitudinal_fits/Tlongitudinal_fit_",formula,"_final.rds"))
-  saveRDS(output, file=paste0("longitudinal_fits/Tlongitudinal_posteriors_",formula,"_final.rds"))
+  saveRDS(combined, paste0("longitudinal_fits/longitudinal_fit_",formula,"_final.rds"))
+  saveRDS(output, file=paste0("longitudinal_fits/longitudinal_posteriors_",formula,"_final.rds"))
   saveRDS(covariance_matrix, paste0("Tlongitudinal_fits/longitudinal_cov_",formula,"_final.rds"))
   
   print(proc.time()-p)["elapsed"]
@@ -126,7 +126,7 @@ reject_IDS <- c(11, 18, 19, 20, 21, 22, 23, 24, 30,
                 60, 61, 66, 67, 79, 138, 149, 167,
                 197, 201, 228)
 
-vl_df <- df_c %>% filter(!PersonID %in% reject_IDS)
+vl_df <- df_c %>% dplyr::filter(!PersonID %in% reject_IDS)
 
 fit8.1 <- fitting_func(stan_model=model_multiple_vl, vl_df=vl_df, formula="corr0", iter=2000, chains=4, cores=4, seed=1)
 fit8.2 <- fitting_func(stan_model=model_multiple_vl, vl_df=vl_df, formula="corr1", iter=2000, chains=4, cores=4, seed=1)
